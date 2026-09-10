@@ -1,0 +1,13 @@
+> bcard-namecard@1.1.0 test:ocr-card
+> node test/ocr-live-card.js
+
+name: NGUYEN MINH THUC
+role: General Manager
+company: AEON TOPVALU VIETNAM COMPANY LIMITED
+phone: 0938-638-881
+email: thuc.nguyen@aeontopvalu.com.vn
+website: aeontopvalu.com.vn
+confidence: 85
+language: vie+eng
+
+Kết quả đo bằng pipeline OCR thật trong Chrome trên ảnh card AEON do người dùng cung cấp ngày 09/09/2026.

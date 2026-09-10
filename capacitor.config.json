@@ -1,0 +1,16 @@
+{
+  "appId": "vn.memento.namecard",
+  "appName": "BCard",
+  "webDir": "www",
+  "backgroundColor": "#F3F6FF",
+  "server": {
+    "androidScheme": "https"
+  },
+  "ios": {
+    "contentInset": "automatic",
+    "preferredContentMode": "mobile"
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}

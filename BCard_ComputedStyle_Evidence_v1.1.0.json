@@ -1,0 +1,22 @@
+{
+  "computedStyle": {
+    "position": "absolute",
+    "inset": [
+      "0px",
+      "0px",
+      "0px",
+      "0px"
+    ],
+    "objectFit": "cover",
+    "imageSize": [
+      346,
+      150
+    ],
+    "frameSize": [
+      346,
+      150
+    ],
+    "overflow": "hidden"
+  },
+  "cspErrors": []
+}

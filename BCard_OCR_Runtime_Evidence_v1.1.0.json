@@ -1,0 +1,30 @@
+{
+  "result": {
+    "name": "TRAN MINH ANH",
+    "role": "Business Development Director",
+    "company": "NOVA SOLUTIONS",
+    "phone": "0903456789",
+    "email": "anh.tran@nova.vn",
+    "website": "nova.vn",
+    "rawText": "TRAN MINH ANH\n\nBusiness Development Director\n\nNOVA SOLUTIONS\n\n0903456789\nanh.tran@nova.vn\n\nwww.nova.vn",
+    "confidence": 94,
+    "language": "vie+eng"
+  },
+  "offlineResult": {
+    "name": "TRAN MINH ANH",
+    "role": "Business Development Director",
+    "company": "NOVA SOLUTIONS",
+    "phone": "0903456789",
+    "email": "anh.tran@nova.vn",
+    "website": "nova.vn",
+    "rawText": "TRAN MINH ANH\n\nBusiness Development Director\n\nNOVA SOLUTIONS\n\n0903456789\nanh.tran@nova.vn\n\nwww.nova.vn",
+    "confidence": 94,
+    "language": "vie+eng"
+  },
+  "browserErrors": [
+    "Warning: Parameter not found: language_model_ngram_on",
+    "Warning: Parameter not found: classify_misfit_junk_penalty",
+    "Warning: Parameter not found: language_model_ngram_on",
+    "Warning: Parameter not found: classify_misfit_junk_penalty"
+  ]
+}

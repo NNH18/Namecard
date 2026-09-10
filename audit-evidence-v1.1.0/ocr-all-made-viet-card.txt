@@ -1,0 +1,13 @@
+> bcard-namecard@1.1.0 test:ocr-card
+> node test/ocr-live-card.js
+
+name: Liney Weishappel
+role: CEO Co Founder
+company: All Made Viet
+phone: +84 707849598
+email: hello@allmadeviet.com
+website: allmadeviet.com
+confidence: 90
+language: vie+eng
+
+Kết quả đo bằng pipeline OCR thật trong Chrome trên cả hai mặt card All Made Viet do người dùng cung cấp ngày 09/09/2026.

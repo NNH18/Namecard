@@ -1,0 +1,30 @@
+> bcard-namecard@1.1.0 test
+> node --test test/logic.test.js test/ocr.test.js test/app.test.js
+
+PASS commitMutation rollback khi localStorage ném QuotaExceededError
+PASS commitMutation rollback khi mutator ném lỗi
+PASS persistScan attach chỉ tạo proposal và giữ nguyên contact methods
+PASS applyApprovedProposal REMOVE đổi status thành REVOKED và không xóa vật lý
+PASS persistScan giữ raw OCR và correction tách khỏi dữ liệu đã xác nhận
+PASS form cho phép lưu chưa xác nhận khi phone và email trống
+PASS persistScan giữ đúng trạng thái review và confirmation của methods
+PASS relinkCard chuyển đúng snapshot mà không trộn dữ liệu contact
+PASS deleteCard xóa payload PII nhưng giữ trạng thái acceptance
+PASS proposal stale được supersede và không ghi đè target mới
+PASS confirmCardReview hoàn tất luồng kiểm tra sau và xác nhận method cùng nguồn
+PASS search và copy không dùng method hoặc relationship đã REVOKED
+PASS relinkCard chuyển encounter theo card và cập nhật contact cũ
+PASS chuẩn hóa dữ liệu Việt Nam để dò trùng
+PASS ưu tiên kết quả trùng theo số điện thoại hoặc email
+PASS tạo đề xuất PENDING mà không ghi đè hồ sơ
+PASS tạo proposal UPDATE riêng cho tên và website cá nhân
+PASS sinh proposal REMOVE từ lựa chọn rõ ràng của người dùng
+PASS chặn email, điện thoại và URL không an toàn
+PASS tách dữ liệu namecard Việt/Anh từ raw OCR
+PASS parser suy ra website công ty từ tên miền email
+PASS ưu tiên tên người, chức danh và số mobile trên card AEON
+PASS tách đúng card All Made Viet và loại slogan khỏi họ tên
+
+tests 23
+pass 23
+fail 0

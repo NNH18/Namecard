@@ -1,0 +1,5 @@
+
+> bcard-namecard@1.1.0 build
+> node build.js
+
+Mobile web assets built in www/

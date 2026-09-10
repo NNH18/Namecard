@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#f3f6ff" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="description" content="BCard quét namecard Việt/Anh, lưu danh bạ và tìm kiếm ngay trên thiết bị." />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self' blob:; form-action 'self'" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <title>BCard — Danh bạ namecard</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <link rel="stylesheet" href="vendor/fonts/dm-sans/index.css" />
+  <link rel="stylesheet" href="vendor/fonts/nunito/index.css" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#view">Đi đến nội dung chính</a>
+  <div class="ambient ambient-one" aria-hidden="true"></div>
+  <div class="ambient ambient-two" aria-hidden="true"></div>
+
+  <div class="app-shell">
+    <aside class="sidebar">
+      <button class="brand pressable" data-route="home" aria-label="Về tổng quan">
+        <span class="brand-mark"><span>B</span></span>
+        <span class="brand-copy"><strong>BCard</strong><small>Danh bạ thứ hai</small></span>
+      </button>
+      <nav class="main-nav" aria-label="Điều hướng chính">
+        <button class="nav-item active pressable" data-route="home"><i data-lucide="house" aria-hidden="true"></i><span>Tổng quan</span></button>
+        <button class="nav-item pressable" data-route="contacts"><i data-lucide="users-round" aria-hidden="true"></i><span>Danh bạ</span><b id="navContactCount">0</b></button>
+        <button class="nav-item pressable" data-route="cards"><i data-lucide="contact-round" aria-hidden="true"></i><span>Namecard</span></button>
+        <button class="nav-item pressable" data-route="events"><i data-lucide="calendar-days" aria-hidden="true"></i><span>Sự kiện</span></button>
+        <button class="nav-item pressable" data-route="sync"><i data-lucide="refresh-cw" aria-hidden="true"></i><span>Đồng bộ</span><i id="syncDot" class="sync-dot" aria-hidden="true"></i></button>
+      </nav>
+      <div class="sidebar-spacer"></div>
+      <nav class="main-nav utility-nav" aria-label="Tài khoản">
+        <button class="nav-item pressable" data-route="privacy"><i data-lucide="shield-check" aria-hidden="true"></i><span>Dữ liệu & quyền riêng tư</span></button>
+      </nav>
+      <button class="account-card pressable" data-route="account">
+        <span class="avatar avatar-small">NH</span>
+        <span><strong>Nguyễn Hà</strong><small>ha.nguyen@example.com</small></span>
+        <i data-lucide="more-horizontal" aria-hidden="true"></i>
+      </button>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <button class="mobile-brand pressable" data-route="home" aria-label="Về tổng quan"><span class="brand-mark"><span>B</span></span><strong>BCard</strong></button>
+        <div class="topbar-actions">
+          <div class="network-pill" id="networkPill" role="status"><span></span> Dữ liệu trên thiết bị</div>
+          <button class="icon-button pressable" id="themeButton" aria-label="Đổi giao diện sáng tối" aria-pressed="false"><i data-lucide="moon" aria-hidden="true"></i></button>
+          <button class="icon-button pressable" id="notificationButton" aria-label="Thông báo"><i data-lucide="bell" aria-hidden="true"></i><span class="notification-dot" aria-hidden="true"></span></button>
+        </div>
+      </header>
+      <section id="view" class="view" tabindex="-1" aria-live="polite"></section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Điều hướng di động">
+      <button class="active pressable" data-route="home"><i data-lucide="house" aria-hidden="true"></i><span>Tổng quan</span></button>
+      <button class="pressable" data-route="contacts"><i data-lucide="users-round" aria-hidden="true"></i><span>Danh bạ</span></button>
+      <button class="scan-fab pressable" id="mobileScan" aria-label="Quét namecard"><i data-lucide="scan-line" aria-hidden="true"></i><span>Quét</span></button>
+      <button class="pressable" data-route="cards"><i data-lucide="contact-round" aria-hidden="true"></i><span>Card</span></button>
+      <button class="pressable" data-route="sync"><i data-lucide="refresh-cw" aria-hidden="true"></i><span>Đồng bộ</span></button>
+    </nav>
+  </div>
+
+  <div class="modal-backdrop" id="modalBackdrop" hidden></div>
+  <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
+  <input type="file" id="frontFile" accept="image/*" capture="environment" hidden />
+  <input type="file" id="backFile" accept="image/*" capture="environment" hidden />
+  <script src="vendor/jquery.min.js"></script>
+  <script src="vendor/lucide.min.js"></script>
+  <script src="vendor/tesseract/tesseract.min.js"></script>
+  <script src="logic.js"></script>
+  <script src="ocr.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

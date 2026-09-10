@@ -1,0 +1,19 @@
+{
+  "name": "BCard — Danh bạ namecard",
+  "short_name": "BCard",
+  "id": "./",
+  "start_url": ".",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "lang": "vi",
+  "categories": ["business", "productivity", "utilities"],
+  "description": "Quét namecard Việt/Anh, lưu danh bạ và tìm kiếm ngay trên thiết bị.",
+  "background_color": "#f3f6ff",
+  "theme_color": "#2563eb",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

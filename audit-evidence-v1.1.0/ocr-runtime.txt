@@ -1,0 +1,5 @@
+
+> bcard-namecard@1.1.0 test:ocr
+> node test/ocr-smoke.js
+
+OCR runtime PASS: vie+eng, confidence 94%, online/offline nhận đúng, CSP/worker/WASM sạch.

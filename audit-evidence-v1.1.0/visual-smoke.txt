@@ -1,0 +1,4 @@
+> bcard-namecard@1.1.0 test:visual
+> node test/visual-smoke.js
+
+Visual smoke PASS: 320/390/1024, CSP sạch, ảnh card đúng khung, combobox creatable/keyboard, review sau, relink, ADD/UPDATE/REMOVE và rollback.

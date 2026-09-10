@@ -1,0 +1,4 @@
+
+> bcard-namecard@1.1.0 check
+> node --check logic.js && node --check ocr.js && node --check app.js && node --check server.js && node --check build.js && node --check sw.js && node --check test/ocr-smoke.js && node --check test/ocr-live-card.js && node --check test/ocr-form-live-card.js && node --check test/visual-smoke.js && node -e "JSON.parse(require('fs').readFileSync('manifest.json','utf8'))"
+

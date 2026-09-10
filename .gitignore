@@ -1,0 +1,13 @@
+node_modules/
+.npm-cache/
+.tools/
+android/keystore/
+android/keystore.properties
+*.log
+mobilephone.png
+mobile-dark.png
+desktop.png
+iphone-se.png
+iphone.png
+tablet-landscape.png
+bcard-phone-screen.png
