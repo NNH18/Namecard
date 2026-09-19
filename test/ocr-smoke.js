@@ -3,7 +3,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const baseUrl = process.env.BCARD_URL || "http://127.0.0.1:4173";
-const chromePath = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
+const chromePath = [process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH, "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe", "/usr/bin/google-chrome", "/usr/bin/chromium", "/usr/bin/chromium-browser"].filter(Boolean).find(candidate => fs.existsSync(candidate));
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -32,6 +32,7 @@ function recognizeSyntheticCard(page) {
 }
 
 (async () => {
+  if (!chromePath) throw new Error("Không tìm thấy Chrome/Chromium cho OCR runtime smoke");
   const browser = await chromium.launch({ headless: true, executablePath: chromePath });
   const page = await browser.newPage({ viewport: { width: 900, height: 600 } });
   const browserErrors = [];
@@ -52,7 +53,9 @@ function recognizeSyntheticCard(page) {
     await page.context().setOffline(true);
     const offlineResult = await recognizeSyntheticCard(page);
     assert(offlineResult.email === "anh.tran@nova.vn", `OCR offline thất bại: ${offlineResult.email}`);
-    fs.writeFileSync(path.join(process.cwd(), "BCard_OCR_Runtime_Evidence_v1.1.0.json"), JSON.stringify({ result, offlineResult, browserErrors }, null, 2));
+    const outputDir = process.env.BCARD_OCR_OUTPUT || path.join(process.cwd(), "test-results", "ocr");
+    fs.mkdirSync(outputDir, { recursive: true });
+    fs.writeFileSync(path.join(outputDir, "runtime-evidence.json"), JSON.stringify({ result, offlineResult, browserErrors }, null, 2));
     console.log(`OCR runtime PASS: vie+eng, confidence ${result.confidence}%, online/offline nhận đúng, CSP/worker/WASM sạch.`);
   } finally {
     await browser.close();

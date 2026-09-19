@@ -21,8 +21,40 @@
   const operationId = ({ ownerId, objectType, objectId, version, operationType }) => `${ownerId}:${objectType}:${objectId}:v${version}:${operationType}`;
   const row = (type, id, version, lifecycle, payload) => ({ id: `${type}:${id}`, objectType: type, objectId: id, version: Number(version || 1), lifecycle: lifecycle || "ACTIVE", payload, payloadHash: tinyHash(payload) });
 
+  function provenanceSources(target, fallbackSource, cardsByCode) {
+    const explicit = Array.isArray(target?.provenanceSources) ? target.provenanceSources : [];
+    if (explicit.length) return explicit.filter(item => item?.sourceObjectId).map(item => ({ sourceType: item.sourceType || "CARD", sourceObjectId: item.sourceObjectId, sourceVersion: Number(item.sourceVersion || 1) }));
+    if (target?.sourceCardId) return [{ sourceType: "CARD", sourceObjectId: target.sourceCardId, sourceVersion: Number(target.sourceCardVersion || 1) }];
+    const code = /^Card\s+#(.+)$/i.exec(String(fallbackSource || "").trim())?.[1];
+    const card = code ? cardsByCode.get(code) : null;
+    return card ? [{ sourceType: "CARD", sourceObjectId: card.id, sourceVersion: Number(card.version || 1) }] : [];
+  }
+
   function flattenSnapshot(snapshot) {
     const rows = [];
+    const cardsByCode = new Map((snapshot.cards || []).filter(card => card.code).map(card => [card.code, card]));
+    const addProvenance = ({ targetType, targetId, targetField, targetVersion, value, sourceTarget, fallbackSource, confirmed, confirmedAt }) => {
+      for (const source of provenanceSources(sourceTarget, fallbackSource, cardsByCode)) {
+        const provenanceId = `prov_${tinyHash([source.sourceType, source.sourceObjectId, targetType, targetId, targetField])}`;
+        rows.push(row("field_provenance", provenanceId, targetVersion, sourceTarget?.status || sourceTarget?.lifecycle || "ACTIVE", {
+          id: provenanceId,
+          object_type: targetType,
+          object_id: targetId,
+          field_name: targetField,
+          source_type: source.sourceType,
+          source_id: source.sourceObjectId,
+          source_object_id: source.sourceObjectId,
+          source_version: source.sourceVersion,
+          target_object_type: targetType,
+          target_object_id: targetId,
+          target_value_id: targetId,
+          target_version: Number(targetVersion || 1),
+          value_hash: tinyHash(value),
+          confirmed: Boolean(confirmed),
+          confirmed_at: confirmedAt || null
+        }));
+      }
+    };
     for (const event of snapshot.events || []) rows.push(row("event", event.id, event.version, event.lifecycle, { ...event }));
     for (const contact of snapshot.contacts || []) {
       const base = { ...contact };
@@ -34,8 +66,10 @@
         rows.push(row("tenant_company", companyId, relationship.companyVersion, relationship.companyLifecycle, { id: companyId, name: relationship.company, website: relationship.website || "" }));
         rows.push(row("contact_company", relationship.id, relationship.version, relationship.status, { ...relationship, contact_id: contact.id, company_id: companyId }));
       }
-      for (const method of contact.methods || []) if (method.source) rows.push(row("field_provenance", `prov_${method.id}`, method.version, method.status, { id: `prov_${method.id}`, object_type: "contact_method", object_id: method.id, field_name: "value", source_type: String(method.source).startsWith("Card #") ? "CARD_OCR" : "USER_INPUT", source_id: method.source, value_hash: tinyHash(method.value) }));
-      for (const relationship of contact.relationships || []) if (relationship.source) rows.push(row("field_provenance", `prov_${relationship.id}`, relationship.version, relationship.status, { id: `prov_${relationship.id}`, object_type: "contact_company", object_id: relationship.id, field_name: "relationship", source_type: String(relationship.source).startsWith("Card #") ? "CARD_OCR" : "USER_INPUT", source_id: relationship.source, value_hash: tinyHash([relationship.company, relationship.role, relationship.website]) }));
+      addProvenance({ targetType: "contact", targetId: contact.id, targetField: "name", targetVersion: contact.version, value: contact.name, sourceTarget: { sourceCardId: contact.nameSourceCardId, sourceCardVersion: contact.nameSourceCardVersion, provenanceSources: contact.nameProvenanceSources }, fallbackSource: contact.nameSource, confirmed: contact.nameConfirmed, confirmedAt: contact.nameConfirmedAt });
+      if (contact.personalUrl) addProvenance({ targetType: "contact", targetId: contact.id, targetField: "personal_url", targetVersion: contact.version, value: contact.personalUrl, sourceTarget: { sourceCardId: contact.personalUrlSourceCardId, sourceCardVersion: contact.personalUrlSourceCardVersion, provenanceSources: contact.personalUrlProvenanceSources }, fallbackSource: contact.personalUrlSource, confirmed: contact.personalUrlConfirmed, confirmedAt: contact.personalUrlConfirmedAt });
+      for (const method of contact.methods || []) addProvenance({ targetType: "contact_method", targetId: method.id, targetField: "value", targetVersion: method.version, value: method.value, sourceTarget: method, fallbackSource: method.source, confirmed: method.confirmed, confirmedAt: method.confirmedAt });
+      for (const relationship of contact.relationships || []) addProvenance({ targetType: "contact_company", targetId: relationship.id, targetField: "relationship_title", targetVersion: relationship.version, value: [relationship.company, relationship.role, relationship.website], sourceTarget: relationship, fallbackSource: relationship.source, confirmed: relationship.confirmed, confirmedAt: relationship.confirmedAt });
       for (const note of contact.notes || []) rows.push(row("note", note.id, note.version, note.lifecycle, { ...note, contact_id: contact.id }));
       for (const encounter of contact.encounters || []) rows.push(row("encounter", encounter.id, encounter.version, encounter.lifecycle, { ...encounter, contact_id: contact.id }));
       for (const tagName of contact.tags || []) {
@@ -119,9 +153,14 @@
         const expectedVersion = previous ? Number(previous.version || 0) : 0;
         const version = Math.max(Number(item.version || 1), expectedVersion + 1);
         item.version = version;
+        item.remoteVisibility = previous?.remoteVisibility || "NEVER_DISPATCHED";
+        if (operationType !== "UPSERT") {
+          item.payload = { id: item.objectId, lifecycle: item.lifecycle };
+          item.payloadHash = tinyHash(item.payload);
+        }
         const id = operationId({ ownerId, objectType: item.objectType, objectId: item.objectId, version, operationType });
         const dependencies = [];
-        operations.push({ id, ownerId, object_type: item.objectType, object_id: item.objectId, object_version: version, expected_version: expectedVersion, operation_type: operationType, idempotency_key: id, payload: item.payload, lifecycle: item.lifecycle, dependencies, sync_status: "PENDING", attempt_count: 0, next_retry_at: null, created_at: nowIso(this.now), updated_at: nowIso(this.now) });
+        operations.push({ id, ownerId, object_type: item.objectType, object_id: item.objectId, object_version: version, expected_version: expectedVersion, operation_type: operationType, idempotency_key: id, payload: item.payload, payload_hash: item.payloadHash, lifecycle: item.lifecycle, dependencies, sync_status: "PENDING", remote_visibility: "NEVER_DISPATCHED", dispatch_policy: operationType === "UPSERT" ? "ALWAYS" : "REMOTE_IF_VISIBLE", attempt_count: 0, first_failed_at: null, last_attempt_at: null, next_retry_at: null, last_error_code: null, created_at: nowIso(this.now), updated_at: nowIso(this.now) });
         objectOperations.set(item.id, id);
       }
       const dependentParents = { contact_method: ["contact"], contact_company: ["contact", "tenant_company"], note: ["contact"], encounter: ["contact", "event", "card"], contact_tag: ["contact", "tag"], card: ["contact", "event"], update_proposal: ["contact"] };
@@ -136,9 +175,12 @@
         const cardOperation = objectOperations.get(`card:${image.cardId}`);
         const operationType = image.lifecycle === "ACTIVE" ? "UPSERT" : image.lifecycle === "RESTRICTED" ? "RESTRICT" : "DELETE";
         const id = operationId({ ownerId, objectType: "card_image", objectId: image.id, version: image.version, operationType });
-        operations.push({ id, ownerId, object_type: "card_image", object_id: image.id, object_version: image.version, expected_version: Math.max(0, Number(image.version || 1) - 1), operation_type: operationType, idempotency_key: id, payload: { image_id: image.id, card_id: image.cardId, side: image.side, path: image.path, checksum: image.checksum, size_bytes: image.size, content_type: image.contentType }, lifecycle: image.lifecycle, dependencies: cardOperation ? [cardOperation] : [], sync_status: "PENDING", attempt_count: 0, next_retry_at: null, created_at: nowIso(this.now), updated_at: nowIso(this.now) });
+        const imagePayload = operationType === "UPSERT" ? { image_id: image.id, card_id: image.cardId, side: image.side, path: image.path, checksum: image.checksum, size_bytes: image.size, content_type: image.contentType } : { image_id: image.id, card_id: image.cardId, path: image.path };
+        operations.push({ id, ownerId, object_type: "card_image", object_id: image.id, object_version: image.version, expected_version: Math.max(0, Number(image.version || 1) - 1), operation_type: operationType, idempotency_key: id, payload: imagePayload, payload_hash: tinyHash(imagePayload), lifecycle: image.lifecycle, dependencies: cardOperation ? [cardOperation] : [], sync_status: "PENDING", remote_visibility: "NEVER_DISPATCHED", dispatch_policy: operationType === "UPSERT" ? "ALWAYS" : "REMOTE_IF_VISIBLE", attempt_count: 0, first_failed_at: null, last_attempt_at: null, next_retry_at: null, last_error_code: null, created_at: nowIso(this.now), updated_at: nowIso(this.now) });
       }
-      await this.db.atomicCommit({ ownerId, snapshot: saved, objects, operations, images });
+      const supersede = operations.filter(item => item.operation_type !== "UPSERT").map(item => ({ objectType: item.object_type, objectId: item.object_id, beforeVersion: item.object_version, reason: `${item.operation_type}_SUPERSEDES_CONTENT` }));
+      const purgeImageIds = images.filter(item => item.lifecycle !== "ACTIVE").map(item => item.id);
+      await (this.db.atomicMutation || this.db.atomicCommit).call(this.db, { ownerId, snapshot: saved, objects, operations, images, supersede, purgeImageIds });
       return { ownerId, objects: objects.length, queued: operations.length, images: images.length };
     }
     async exportData() {
@@ -153,18 +195,29 @@
     async pullRemote() {
       const ownerId = this.owner();
       if (!this.client) throw Object.assign(new Error("Cần cấu hình Supabase"), { code: "CONFIG_REQUIRED" });
-      const tables = ["events", "contacts", "contact_methods", "tenant_companies", "contact_companies", "cards", "card_images", "encounters", "notes", "tags", "contact_tags", "update_proposals"];
+      const tables = ["events", "contacts", "contact_methods", "tenant_companies", "contact_companies", "cards", "card_images", "encounters", "notes", "tags", "contact_tags", "update_proposals", "field_provenance"];
       const values = await Promise.all(tables.map(table => this.client.rest(table, { query: "select=*" })));
       const remote = Object.fromEntries(tables.map((table, index) => [table, Array.isArray(values[index]) ? values[index] : []]));
       const companies = new Map(remote.tenant_companies.map(item => [item.id, item]));
-      const methods = new Map(); for (const item of remote.contact_methods.filter(item => item.lifecycle === "ACTIVE")) (methods.get(item.contact_id) || methods.set(item.contact_id, []).get(item.contact_id)).push({ id: item.id, kind: item.kind, label: item.label, value: item.value, preferred: item.preferred, confirmed: item.confirmed, source: item.source, status: item.lifecycle, version: item.version });
-      const relationships = new Map(); for (const item of remote.contact_companies.filter(item => item.lifecycle === "ACTIVE")) { const company = companies.get(item.company_id) || {}; (relationships.get(item.contact_id) || relationships.set(item.contact_id, []).get(item.contact_id)).push({ id: item.id, companyId: item.company_id, company: company.name || "", role: item.role, primary: item.is_primary, website: company.website || "", source: item.source, status: item.lifecycle, version: item.version, companyVersion: company.version }); }
+      const cardCodes = new Map(remote.cards.map(item => [item.id, item.code || item.id]));
+      const provenance = new Map();
+      for (const item of remote.field_provenance || []) {
+        const key = `${item.target_object_type || item.object_type}:${item.target_object_id || item.object_id}:${item.field_name}`;
+        const sourceObjectId = item.source_object_id || item.source_id;
+        if (!sourceObjectId || !["CARD", "CARD_OCR"].includes(item.source_type)) continue;
+        const values = provenance.get(key) || [];
+        values.push({ sourceType: "CARD", sourceObjectId, sourceVersion: Number(item.source_version || 1), confirmed: Boolean(item.confirmed), confirmedAt: item.confirmed_at || null });
+        provenance.set(key, values);
+      }
+      const sourceLabel = refs => refs?.[0] ? `Card #${cardCodes.get(refs[0].sourceObjectId) || refs[0].sourceObjectId}` : "";
+      const methods = new Map(); for (const item of remote.contact_methods.filter(item => item.lifecycle === "ACTIVE")) { const refs = provenance.get(`contact_method:${item.id}:value`) || []; (methods.get(item.contact_id) || methods.set(item.contact_id, []).get(item.contact_id)).push({ id: item.id, kind: item.kind, label: item.label, value: item.value, normalizedValue: item.normalized_value || "", preferred: item.preferred, confirmed: item.confirmed, source: sourceLabel(refs) || item.source, provenanceSources: refs, status: item.lifecycle, version: item.version }); }
+      const relationships = new Map(); for (const item of remote.contact_companies.filter(item => item.lifecycle === "ACTIVE")) { const company = companies.get(item.company_id) || {}; const refs = provenance.get(`contact_company:${item.id}:relationship_title`) || provenance.get(`contact_company:${item.id}:relationship`) || []; (relationships.get(item.contact_id) || relationships.set(item.contact_id, []).get(item.contact_id)).push({ id: item.id, companyId: item.company_id, company: company.name || "", role: item.role, primary: item.is_primary, website: company.website || "", source: sourceLabel(refs) || item.source, provenanceSources: refs, status: item.lifecycle, version: item.version, companyVersion: company.version }); }
       const notes = new Map(); for (const item of remote.notes.filter(item => item.lifecycle === "ACTIVE")) (notes.get(item.contact_id) || notes.set(item.contact_id, []).get(item.contact_id)).push({ id: item.id, text: item.body, date: item.updated_at, sync: "COMPLETE", version: item.version, lifecycle: item.lifecycle });
       const encounters = new Map(); for (const item of remote.encounters.filter(item => item.lifecycle === "ACTIVE")) (encounters.get(item.contact_id) || encounters.set(item.contact_id, []).get(item.contact_id)).push({ id: item.id, event_id: item.event_id || "", event: item.context || "", date: item.occurred_at || item.created_at, source: "SERVER", cardId: item.source_card_id || "", version: item.version, lifecycle: item.lifecycle });
       const tagNames = new Map(remote.tags.filter(item => item.lifecycle === "ACTIVE").map(item => [item.id, item.name]));
       const tags = new Map(); for (const item of remote.contact_tags.filter(item => item.lifecycle === "ACTIVE")) { const name = tagNames.get(item.tag_id); if (name) (tags.get(item.contact_id) || tags.set(item.contact_id, []).get(item.contact_id)).push(name); }
       const cardsByContact = new Map(); for (const item of remote.cards.filter(item => item.lifecycle !== "DELETED")) (cardsByContact.get(item.contact_id) || cardsByContact.set(item.contact_id, []).get(item.contact_id)).push(item.id);
-      const contacts = remote.contacts.filter(item => item.lifecycle !== "DELETED").map(item => ({ id: item.id, name: item.name, initials: item.initials, personalUrl: item.personal_url || "", draft: item.draft, methods: methods.get(item.id) || [], relationships: relationships.get(item.id) || [], tags: tags.get(item.id) || [], event: (encounters.get(item.id) || [])[0]?.event || "Không có sự kiện", encounters: encounters.get(item.id) || [], notes: notes.get(item.id) || [], cards: cardsByContact.get(item.id) || [], version: item.version, sync: "COMPLETE", lifecycle: item.lifecycle, incident: "NONE", lastMet: (encounters.get(item.id) || [])[0]?.date || "—" }));
+      const contacts = remote.contacts.filter(item => item.lifecycle !== "DELETED").map(item => { const nameRefs = provenance.get(`contact:${item.id}:name`) || []; const personalUrlRefs = provenance.get(`contact:${item.id}:personal_url`) || []; return ({ id: item.id, name: item.name, nameSource: sourceLabel(nameRefs), nameProvenanceSources: nameRefs, initials: item.initials, personalUrl: item.personal_url || "", personalUrlSource: sourceLabel(personalUrlRefs), personalUrlProvenanceSources: personalUrlRefs, draft: item.draft, methods: methods.get(item.id) || [], relationships: relationships.get(item.id) || [], tags: tags.get(item.id) || [], event: (encounters.get(item.id) || [])[0]?.event || "Không có sự kiện", encounters: encounters.get(item.id) || [], notes: notes.get(item.id) || [], cards: cardsByContact.get(item.id) || [], version: item.version, sync: "COMPLETE", lifecycle: item.lifecycle, incident: "NONE", lastMet: (encounters.get(item.id) || [])[0]?.date || "—" }); });
       const events = remote.events.filter(item => item.lifecycle !== "DELETED").map(item => ({ id: item.id, name: item.name, date: item.event_date || "", place: item.place || "", contacts: 0, version: item.version, lifecycle: item.lifecycle }));
       const cards = remote.cards.filter(item => item.lifecycle !== "DELETED").map(item => ({ ...(item.snapshot || {}), id: item.id, contactId: item.contact_id || item.snapshot?.contactId || "", event_id: item.event_id || "", code: item.code, acceptance: item.acceptance, reviewStatus: item.review_status, lifecycle: item.lifecycle, version: item.version, sync: "COMPLETE", front: "", back: "" }));
       const proposals = remote.update_proposals.map(item => ({ id: item.id, contactId: item.contact_id, kind: item.proposal_type, target: item.target_type, targetId: item.target_id || "", value: item.proposed_value?.value ?? "", metadata: item.proposed_value?.metadata || {}, targetVersion: item.target_version, status: item.status === "APPROVED" ? "ACCEPTED" : item.status, version: item.version, lifecycle: item.lifecycle }));

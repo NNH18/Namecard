@@ -65,13 +65,13 @@ Luồng sử dụng chính:
 
 ### 4.3. Cách lưu dữ liệu hiện tại
 
-- Dữ liệu nghiệp vụ và ảnh đã tối ưu được lưu trong `localStorage` theo origin trình duyệt.
-- Dữ liệu mẫu và trạng thái online/offline/sync chỉ là mô phỏng ở phía client.
-- Khi người dùng bấm đồng bộ, prototype chuyển trạng thái object sang `COMPLETE`; không có request tới backend thật.
-- Xuất dữ liệu tạo file JSON ở phía trình duyệt.
-- Xóa card dọn ảnh, raw OCR, extracted values và correction cục bộ, nhưng giữ metadata acceptance/lifecycle tối thiểu để minh họa mô hình.
+- Dữ liệu nghiệp vụ, Blob ảnh, object cache và pending queue được lưu theo account trong IndexedDB; `localStorage` chỉ còn migration một lần cho dữ liệu prototype cũ.
+- Khi có cấu hình public Supabase, Auth/PostgreSQL/RLS/private Storage và RPC `sync_object` xử lý backend thật. Khi thiếu cấu hình, app báo local-development rõ ràng và không giả sync/research thành công.
+- Queue đồng bộ theo object/version/idempotency, dependency, retry/backoff, conflict và remote-visibility evidence. Lifecycle mới supersede payload cũ trong cùng transaction.
+- Native refresh token dùng Keychain/Android Keystore qua Token Vault; browser session chỉ ở memory.
+- Xuất dữ liệu chỉ theo account hiện tại. Xóa card dọn ảnh/raw OCR/PII cục bộ, không upload content chưa từng dispatch, và tách delete propagation khỏi lịch sử content sync.
 
-### 4.4. Các trạng thái nghiệp vụ được mô phỏng
+### 4.4. Các trạng thái nghiệp vụ hiện dùng
 
 BCard cố ý tách bốn chiều trạng thái, không gộp thành một `status` chung:
 
@@ -97,9 +97,9 @@ BCard cố ý tách bốn chiều trạng thái, không gộp thành một `stat
 | Mobile wrapper | Capacitor với project Android và iOS |
 | Kiểm thử | Node test runner và Playwright Core cho smoke test |
 
-## 5. Bản hoàn thiện production sẽ làm gì?
+## 5. Phần engineering đã triển khai và gate còn lại
 
-Bản hoàn thiện production gồm toàn bộ core P0 và Company Research tự động bắt buộc để người dùng quản lý danh bạ namecard thật một cách an toàn, đồng thời nhận được thông tin doanh nghiệp có nguồn. Nó giữ nguyên trải nghiệm cốt lõi của prototype nhưng thay phần mô phỏng bằng hệ thống dữ liệu, bảo mật và vận hành thực.
+Repository hiện đã có core P0, backend Supabase, offline sync hardening và Company Research có nguồn ở mức code/test để đưa vào controlled staging bằng dữ liệu giả. Điều này chưa thay thế Legal & Store Gate, staging credential, device validation, backup/restore hoặc incident ownership.
 
 ### 5.1. Ứng dụng mobile
 
@@ -155,21 +155,21 @@ Production không chỉ là đưa web lên một hosting công khai. Trước kh
 - Threat model, tenant isolation, mã hóa khi truyền/lưu, key management, logging có che PII và kiểm soát admin/support.
 - Quy trình incident, backup/restore test, giám sát và bằng chứng nghiệm thu.
 
-## 6. Khác biệt giữa prototype hiện tại và production
+## 6. Trạng thái hiện tại và external gate
 
-| Hạng mục | Prototype hiện tại | Production P0 cần có |
+| Hạng mục | Đã triển khai/kiểm thử cục bộ | Cần xác minh ngoài repository |
 |---|---|---|
-| Dữ liệu | `localStorage` trên một browser origin | Local DB/index an toàn + database server |
-| Tài khoản | Tài khoản mẫu | Auth, session, tenant isolation thật |
-| Đồng bộ | Mô phỏng trạng thái trong JavaScript | Queue, API, ACK, idempotency, dependency và conflict handling |
-| Ảnh | Data URL/local browser storage | App-private storage + object storage riêng tư |
-| Offline | App shell và dữ liệu local demo | Dữ liệu thật, pending bền, reconcile và restore |
+| Dữ liệu | IndexedDB account-scoped + PostgreSQL migrations | Staging migration/restore exercise |
+| Tài khoản | Supabase email/password, session isolation, native secure token adapter | Credential staging và test thiết bị thật |
+| Đồng bộ | Queue, RPC, ACK, idempotency, dependency, reconciliation và durable conflict | Soak/network testing trên staging |
+| Ảnh | Local Blob + private owner-only Storage flow | Lifecycle E2E với bucket staging |
+| Offline | Pending bền, delete-before-sync supersession, pull/restore provenance | OS backup/restore và reinstall matrix |
 | OCR | Tesseract.js chạy cục bộ | OCR on-device đã benchmark trên tập card pilot |
 | Mobile | Web/PWA + bộ khung Capacitor | App Android/iOS được kiểm thử, ký, phát hành và qua store gate |
-| Bảo mật | CSP và security headers cho demo web | Secure storage, encryption, authorization, secrets, audit và monitoring |
-| Privacy/DSR | UI và hành vi minh họa | Quy trình, công cụ, retention và bằng chứng vận hành thật |
-| Company Research | Chưa có implementation | Tự động resolver + server research + facts/sources + cache + UI + refresh |
-| Vận hành | Static Node server | Hạ tầng production, backup/restore, alert, incident và support |
+| Bảo mật | RLS, direct-DML lockdown, secure native token, private Storage, secret boundary và CI tests | Threat model review và monitoring ownership |
+| Privacy/DSR | Account request + verified case/operator/match/action/audit schema, server RPC và operator runbook | Legal approval, retention decision và staging rehearsal |
+| Company Research | Tenant-bound resolver/research, atomic quotas, cache, sources và personal-contact filter | Live provider quality/cost evaluation |
+| Vận hành | CI, docs và fake-data staging boundary | Backup/restore, alert, incident và support ownership |
 
 ## 7. Những gì không thuộc bản hoàn thiện
 
@@ -200,14 +200,14 @@ Company Research tự động thuộc phạm vi bắt buộc. Các chức năng 
 - Cam kết dữ liệu đã được đồng bộ/backup trên server.
 - Cam kết tenant isolation, secure storage, retention, DSR hoặc compliance hoàn chỉnh.
 
-Kết luận hiện tại: **GO cho demo/discovery; NO-GO cho production và pilot namecard thật cho đến khi backend, bảo mật và Core P0 Legal & Store Gate hoàn tất.**
+Kết luận hiện tại: **GO cho controlled staging bằng dữ liệu giả sau khi migrations/Edge Functions được triển khai và kiểm tra; NO-GO cho production và pilot namecard thật cho đến khi staging validation, security review và Core P0 Legal & Store Gate hoàn tất.**
 
 ## 9. Cấu trúc repository quan trọng
 
 | File/thư mục | Mục đích |
 |---|---|
 | `index.html`, `styles.css` | App shell và giao diện |
-| `app.js` | State, render UI và các luồng nghiệp vụ prototype |
+| `app.js` | State, render UI và điều phối các luồng nghiệp vụ web/mobile |
 | `logic.js` | Chuẩn hóa dữ liệu, dò trùng và logic proposal/contact |
 | `ocr.js` | Tiền xử lý ảnh, chạy Tesseract và parse field |
 | `sw.js`, `manifest.json` | PWA/offline cache và metadata cài đặt web app |
@@ -246,6 +246,6 @@ npm run ios
 
 ## 11. Kết luận
 
-BCard hiện chứng minh được ý tưởng sản phẩm và luồng UX cốt lõi: **chụp namecard → OCR trên thiết bị → review → lưu card/contact → tìm lại offline → sử dụng thông tin liên hệ**. Prototype chưa chứng minh Company Research.
+BCard hiện có luồng **chụp namecard → OCR trên thiết bị → review → local acceptance → tìm offline → sync theo object/version → Company Research có nguồn** cùng các kiểm soát hardening trong repository.
 
-Việc đưa lên production là một giai đoạn xây dựng tiếp theo, trọng tâm nằm ở **backend, đồng bộ đáng tin cậy, lưu trữ ảnh riêng tư, bảo vệ dữ liệu mobile, tenant isolation, quyền chủ thể dữ liệu, audit, vận hành và Company Research tự động có nguồn**. Chỉ khi core P0, auto trigger/resolver/research/facts/cache/UI/manual refresh cùng Legal & Store Gate được nghiệm thu thì mới được kết luận project hoàn thiện và cân nhắc pilot namecard thật.
+Wording tối đa ở trạng thái này là: **Engineering hardening completed; ready for controlled staging validation with fake data** sau khi toàn bộ regression và database tests có bằng chứng. Chưa được gọi production-ready, compliant, store-approved hoặc sẵn sàng pilot namecard thật khi external gate chưa đạt.

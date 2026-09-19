@@ -6,6 +6,7 @@
   "use strict";
 
   const nowIso = now => new Date(now).toISOString();
+  const minimalPayload = operation => ({ object_id: operation.object_id, object_type: operation.object_type, object_version: operation.object_version, payload_hash: operation.payload_hash || null });
   function backoffMs(attempt, { base = 1000, max = 300000, jitter = 0.2, random = Math.random } = {}) {
     const raw = Math.min(max, base * (2 ** Math.max(0, attempt - 1)));
     return Math.round(raw * (1 - jitter + random() * jitter * 2));
@@ -31,7 +32,7 @@
     stop() { this.controller?.abort(); this.controller = null; }
     async reconcile(ownerId) {
       const inflight = await this.db.listOperations(ownerId, ["IN_FLIGHT"]);
-      for (const operation of inflight) await this.db.putOperation({ ...operation, sync_status: "RETRY_WAIT", next_retry_at: nowIso(this.now()), updated_at: nowIso(this.now()), last_error_code: "INTERRUPTED" });
+      for (const operation of inflight) await this.db.putOperation({ ...operation, sync_status: "RECONCILE_REQUIRED", remote_visibility: "MAY_HAVE_REACHED_SERVER", next_retry_at: nowIso(this.now()), updated_at: nowIso(this.now()), last_error_code: "ACK_UNKNOWN" });
       return inflight.length;
     }
     async process({ manual = false } = {}) {
@@ -44,25 +45,57 @@
       if (!ownerId) return { processed: 0, blocked: "AUTH_REQUIRED" };
       const epoch = this.getEpoch();
       this.controller?.abort(); this.controller = new AbortController();
-      const statuses = manual ? ["PENDING", "RETRY_WAIT", "AUTH_REQUIRED"] : ["PENDING", "RETRY_WAIT"];
+      const statuses = manual ? ["PENDING", "RETRY_WAIT", "AUTH_REQUIRED", "RECONCILE_REQUIRED"] : ["PENDING", "RETRY_WAIT", "RECONCILE_REQUIRED"];
       const queued = sortOperations(await this.db.listOperations(ownerId, statuses));
       const completed = new Set(); let processed = 0;
       for (const initial of queued) {
         if (this.controller.signal.aborted || this.getOwnerId() !== ownerId || this.getEpoch() !== epoch) break;
         const operation = await this.db.getOperation(initial.id) || initial;
+        const currentObject = await this.db.getObject?.(ownerId, operation.object_type, operation.object_id);
+        const objectOperations = await this.db.listObjectOperations?.(ownerId, operation.object_type, operation.object_id) || [operation];
+        const latestVersion = Math.max(...objectOperations.map(item => Number(item.object_version || 0)), 0);
+        const lifecycleSuperseded = operation.operation_type === "UPSERT" && currentObject && currentObject.lifecycle && currentObject.lifecycle !== "ACTIVE";
+        if (Number(operation.object_version || 0) < Number(currentObject?.version || 0) || Number(operation.object_version || 0) < latestVersion || lifecycleSuperseded) {
+          await this.db.putOperation({ ...operation, sync_status: "SUPERSEDED", payload: minimalPayload(operation), superseded_reason: "DISPATCH_GUARD_NEWER_OBJECT", superseded_at: nowIso(this.now()), updated_at: nowIso(this.now()), last_error_code: "LIFECYCLE_SUPERSEDED" });
+          continue;
+        }
         if (operation.lifecycle && operation.lifecycle !== "ACTIVE" && !["DELETE", "RESTRICT"].includes(operation.operation_type)) {
-          await this.db.putOperation({ ...operation, sync_status: "SUPERSEDED", updated_at: nowIso(this.now()), last_error_code: "LIFECYCLE_SUPERSEDED" });
+          await this.db.putOperation({ ...operation, sync_status: "SUPERSEDED", payload: minimalPayload(operation), superseded_reason: "DISPATCH_GUARD_LIFECYCLE", superseded_at: nowIso(this.now()), updated_at: nowIso(this.now()), last_error_code: "LIFECYCLE_SUPERSEDED" });
           continue;
         }
         if (!manual && operation.next_retry_at && Date.parse(operation.next_retry_at) > this.now()) continue;
         const unsatisfied = (operation.dependencies || []).some(dependency => !completed.has(dependency) && queued.some(item => item.id === dependency));
         if (unsatisfied) continue;
-        const inFlight = { ...operation, sync_status: "IN_FLIGHT", attempt_count: Number(operation.attempt_count || 0) + 1, updated_at: nowIso(this.now()) };
+        if (operation.sync_status === "RECONCILE_REQUIRED" && this.remote.reconcileOperation) {
+          try {
+            const evidence = await this.remote.reconcileOperation(operation, this.controller.signal);
+            if (evidence?.status === "COMPLETE") {
+              await this.db.putOperation({ ...operation, sync_status: "COMPLETE", remote_visibility: "ACKED", server_ack_version: Number(evidence.version ?? operation.object_version), next_retry_at: null, last_error_code: null, updated_at: nowIso(this.now()) });
+              completed.add(operation.id); processed += 1; continue;
+            }
+            if (evidence?.status !== "ABSENT") continue;
+          } catch (error) {
+            if (error?.status === 401 || error?.code === "AUTH_REQUIRED") {
+              await this.db.putOperation({ ...operation, sync_status: "AUTH_REQUIRED", last_error_code: "AUTH_REQUIRED", updated_at: nowIso(this.now()) });
+              break;
+            }
+            continue;
+          }
+        }
+        const attemptAt = nowIso(this.now());
+        const inFlight = { ...operation, sync_status: "IN_FLIGHT", remote_visibility: "MAY_HAVE_REACHED_SERVER", attempt_count: Number(operation.attempt_count || 0) + 1, last_attempt_at: attemptAt, updated_at: attemptAt };
         await this.db.putOperation(inFlight);
         try {
           const result = operation.object_type === "card_image" ? await this.remote.syncImage(inFlight, this.controller.signal) : await this.remote.syncObject(inFlight, this.controller.signal);
           if (this.getOwnerId() !== ownerId || this.getEpoch() !== epoch) continue;
-          await this.db.putOperation({ ...inFlight, sync_status: "COMPLETE", server_ack_version: Number(result?.version ?? operation.object_version), next_retry_at: null, last_error_code: null, updated_at: nowIso(this.now()) });
+          const latest = await this.db.getOperation(operation.id);
+          if (latest?.sync_status === "SUPERSEDED") continue;
+          if (result?.status === "CONFLICT") {
+            await this.db.putOperation({ ...inFlight, sync_status: "CONFLICT", remote_visibility: "MAY_HAVE_REACHED_SERVER", last_error_code: "STALE_VERSION", conflict: { current_version: result.current_version }, updated_at: nowIso(this.now()) });
+            continue;
+          }
+          await this.db.putOperation({ ...inFlight, sync_status: "COMPLETE", remote_visibility: "ACKED", server_ack_version: Number(result?.version ?? operation.object_version), next_retry_at: null, last_error_code: null, updated_at: nowIso(this.now()) });
+          if (currentObject) await (this.db.atomicMutation || this.db.atomicCommit).call(this.db, { ownerId, objects: [{ ...currentObject, remoteVisibility: "ACKED" }] });
           completed.add(operation.id); processed += 1;
         } catch (error) {
           if (this.getOwnerId() !== ownerId || this.getEpoch() !== epoch) continue;
@@ -74,11 +107,11 @@
             break;
           } else {
             const retry = backoffMs(inFlight.attempt_count, { random: this.random });
-            await this.db.putOperation({ ...inFlight, sync_status: "RETRY_WAIT", last_error_code: code, next_retry_at: nowIso(this.now() + retry), updated_at: nowIso(this.now()) });
+            await this.db.putOperation({ ...inFlight, sync_status: "RETRY_WAIT", remote_visibility: "MAY_HAVE_REACHED_SERVER", first_failed_at: inFlight.first_failed_at || nowIso(this.now()), last_error_code: code, backlog_attention: inFlight.attempt_count >= 5, next_retry_at: nowIso(this.now() + retry), updated_at: nowIso(this.now()) });
           }
         }
       }
-      return { processed, remaining: (await this.db.listOperations(ownerId, ["PENDING", "RETRY_WAIT", "AUTH_REQUIRED", "CONFLICT"])).length };
+      return { processed, remaining: (await this.db.listOperations(ownerId, ["PENDING", "RETRY_WAIT", "AUTH_REQUIRED", "RECONCILE_REQUIRED", "CONFLICT"])).length };
     }
   }
 

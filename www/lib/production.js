@@ -18,13 +18,16 @@
     let client = null;
     if (config.configured) client = new lib.supabase.SupabaseClient({ url: config.supabaseUrl, anonKey: config.supabaseAnonKey });
     state.client = client;
-    state.auth = client ? new lib.auth.AuthManager({ client, db: state.db }) : null;
+    const nativeRuntime = root.Capacitor;
+    const sessionStore = client ? lib.sessionStore.createSessionStore({ runtime: nativeRuntime, legacyDb: state.db }) : null;
+    state.auth = client ? new lib.auth.AuthManager({ client, sessionStore, db: state.db }) : null;
     const localOwner = config.localOwnerId || "local-development";
     state.ownerId = config.configured ? "" : localOwner;
     const imageStorage = new lib.storage.ImageStorage({ client, maxBytes: config.maxImageBytes });
     state.repository = new lib.repository.Repository({ db: state.db, imageStorage, client, getOwnerId: () => state.ownerId });
     const remote = client ? {
       syncObject: (operation, signal) => client.rpc("sync_object", { p_object_type: operation.object_type, p_object_id: operation.object_id, p_operation_type: operation.operation_type, p_expected_version: operation.expected_version, p_object_version: operation.object_version, p_idempotency_key: operation.idempotency_key, p_payload: operation.payload }, signal),
+      reconcileOperation: (operation, signal) => client.rpc("reconcile_sync_operation", { p_idempotency_key: operation.idempotency_key }, signal),
       syncImage: async (operation, signal) => {
         const image = await state.db.getImage(state.ownerId, operation.payload.image_id);
         if (!image) throw Object.assign(new Error("Không tìm thấy ảnh cục bộ"), { code: "LOCAL_IMAGE_MISSING" });

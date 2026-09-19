@@ -14,18 +14,21 @@ Deno.serve(async request => {
   const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
   try {
     const body = await request.json();
+    const tenantCompanyId = String(body?.tenant_company_id || "").trim().slice(0,160);
+    if (!/^[a-zA-Z0-9_-]{3,160}$/.test(tenantCompanyId)) return json({ status: "unresolved", reason: "TENANT_COMPANY_REQUIRED" }, 422);
+    const { data: tenantCompany } = await admin.from("tenant_companies").select("id,name,website,lifecycle").eq("owner_id",user.id).eq("id",tenantCompanyId).eq("lifecycle","ACTIVE").maybeSingle();
+    if (!tenantCompany) return json({ status: "unresolved", reason: "TENANT_COMPANY_NOT_FOUND" }, 404);
     if (body?.candidate || body?.domain || body?.website) {
-      const candidate = validateCandidate(body?.candidate || body);
-      return json({ status: "resolved", candidate: { ...candidate, status: "resolved", confidence: 0.95, reason: "validated_domain" } });
+      const candidate = validateCandidate({ ...(body?.candidate || body), company_name: tenantCompany.name });
+      return json({ status: "resolved", tenant_company_id: tenantCompanyId, candidate: { ...candidate, status: "resolved", confidence: 0.95, reason: "validated_domain" } });
     }
-    const companyName = String(body?.company_name || "").trim().slice(0, 300);
+    const companyName = String(tenantCompany.name || "").trim().slice(0, 300);
     const address = String(body?.address || "").trim().slice(0, 1000);
     if (!companyName || !address) return json({ status: "unresolved", reason: "AMBIGUOUS_WITHOUT_DOMAIN" }, 422);
-    const now = new Date(); const hourAgo = new Date(now.getTime() - 3600000).toISOString(); const maxRequests = Math.max(1, Math.min(100, Number(Deno.env.get("RESEARCH_RATE_LIMIT_PER_HOUR") || 10)));
-    const { data: limit } = await admin.from("research_rate_limits").select("window_started_at,request_count").eq("owner_id", user.id).maybeSingle();
-    const count = limit && limit.window_started_at > hourAgo ? Number(limit.request_count) : 0;
-    if (count >= maxRequests) return json({ status: "unresolved", reason: "RATE_LIMITED" }, 429);
-    await admin.from("research_rate_limits").upsert({ owner_id: user.id, window_started_at: count ? limit.window_started_at : now.toISOString(), request_count: count + 1, updated_at: now.toISOString() });
+    const maxRequests = Math.max(1, Math.min(100, Number(Deno.env.get("RESOLVER_RATE_LIMIT_PER_HOUR") || 10)));
+    const { data: quota, error: quotaError } = await admin.rpc("consume_research_quota",{ p_owner_id:user.id,p_bucket:"resolver",p_limit:maxRequests,p_units:1 });
+    if (quotaError) throw new Error("QUOTA_CHECK_FAILED");
+    if (!quota?.allowed) return json({ status: "unresolved", reason: "RATE_LIMITED" }, 429);
     const apiKey = Deno.env.get("OPENAI_API_KEY");
     if (!apiKey) return json({ status: "unresolved", reason: "RESOLVER_PROVIDER_NOT_CONFIGURED" }, 503);
     const model = Deno.env.get("COMPANY_RESEARCH_MODEL") || "gpt-5-mini";
@@ -37,7 +40,7 @@ Deno.serve(async request => {
     if (!parsed.resolved || Number(parsed.confidence) < 0.8) return json({ status: "unresolved", reason: parsed.reason || "LOW_CONFIDENCE" }, 422);
     const candidate = validateCandidate({ company_name: parsed.company_name || companyName, domain: parsed.domain, website: parsed.website });
     const evidence = Array.isArray(parsed.evidence) ? parsed.evidence.slice(0, 10).map((item: any) => ({ url: safePublicUrl(String(item.url)).toString(), title: String(item.title).slice(0, 300) })) : [];
-    return json({ status: "resolved", candidate: { ...candidate, status: "resolved", confidence: Number(parsed.confidence), reason: parsed.reason || "name_address_public_evidence", evidence } });
+    return json({ status: "resolved", tenant_company_id: tenantCompanyId, candidate: { ...candidate, status: "resolved", confidence: Number(parsed.confidence), reason: parsed.reason || "name_address_public_evidence", evidence } });
   } catch (error) {
     return json({ status: "unresolved", reason: error instanceof Error ? error.message : "INVALID_CANDIDATE" }, 422);
   }

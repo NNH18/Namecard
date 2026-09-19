@@ -359,7 +359,8 @@ function renderContactDetail(contact) {
 function companyResearchKey(contact) {
   const relationship = primaryRelationship(contact);
   const resolved = window.BCardLib?.companyResolver?.resolveCompany({ companyName: relationship.company, website: relationship.website, businessEmail: preferredMethod(contact, "EMAIL")?.value || "" });
-  return resolved?.domain || relationship.company || "";
+  const tenantCompanyId = relationship.companyId || (relationship.id ? `company_${relationship.id}` : "");
+  return `${tenantCompanyId}|${String(resolved?.domain || relationship.company || "").toLowerCase().replace(/[^a-z0-9.-]/g, "_")}`.slice(0, 400);
 }
 
 function renderCompanyResearch(contact) {
@@ -367,14 +368,34 @@ function renderCompanyResearch(contact) {
   const state = production.research.getState(companyResearchKey(contact));
   const result = state.result;
   const statusText = { not_researched: "Chưa nghiên cứu", resolving: "Đang xác định công ty", researching: "Đang nghiên cứu", completed: "Đã hoàn tất", unresolved: "Chưa xác định được", failed: "Nghiên cứu thất bại" }[state.status] || "Chưa nghiên cứu";
-  return `<section class="panel stacked-panel"><div class="panel-head"><div><h2>Thông tin công khai của doanh nghiệp</h2><small class="muted-text">${esc(statusText)}${state.cache ? ` · cache ${esc(state.cache)}` : ""}</small></div><button class="button secondary small pressable" data-action="research-company" data-id="${esc(contact.id)}">${icon("search")} ${state.status === "completed" ? "Làm mới" : "Nghiên cứu"}</button></div><div class="panel-body">${result ? `<div class="insight-card flush-top"><strong>${esc(result.company_name)}</strong><p>${esc(result.summary || "Chưa có tóm tắt.")}</p>${result.official_website ? `<button class="button ghost small pressable" data-action="website" data-value="${esc(result.official_website)}">${icon("external-link")} Website chính thức</button>` : ""}</div><div class="info-section"><h3>Ngành & sản phẩm</h3><p class="subhead">${esc([...(result.industry || []), ...(result.products_services || [])].join(" · ") || "Chưa có dữ liệu")}</p></div><div class="info-section"><h3>Thị trường & khách hàng</h3><p class="subhead">${esc([...(result.markets || []), ...(result.target_customers || [])].join(" · ") || "Chưa có dữ liệu")}</p></div><div class="info-section"><h3>Quy mô & trụ sở</h3><p class="subhead">${esc([result.company_size, result.headquarters].filter(Boolean).join(" · ") || "Chưa có dữ liệu")}</p></div><div class="info-section"><h3>Liên hệ công khai của doanh nghiệp</h3><p class="subhead">${esc((result.public_contacts || []).join(" · ") || "Chưa có dữ liệu")}</p><small class="source">Độ tin cậy ${esc(result.confidence)}% · nghiên cứu ${esc(result.researched_at || "—")}</small></div><div class="info-section"><h3>Nguồn</h3>${(result.sources || []).map(source => `<p><a href="${esc(source.url)}" target="_blank" rel="noopener noreferrer">${esc(source.title)}</a><br><small class="source">${esc(source.retrieved_at)}</small></p>`).join("") || '<p class="subhead">Chưa có nguồn.</p>'}</div>` : `<p class="subhead">${esc(state.message || state.reason || "BCard chỉ nghiên cứu khi có website chính thức hoặc email tên miền doanh nghiệp.")}</p>`}</div></section>`;
+  return `<section class="panel stacked-panel"><div class="panel-head"><div><h2>Thông tin công khai của doanh nghiệp</h2><small class="muted-text">${esc(statusText)}${state.cache ? ` · cache ${esc(state.cache)}` : ""}</small></div><button class="button secondary small pressable" data-action="research-company" data-id="${esc(contact.id)}">${icon("search")} ${state.status === "completed" ? "Làm mới" : "Nghiên cứu"}</button></div><div class="panel-body">${result ? `<div class="insight-card flush-top"><strong>${esc(result.company_name)}</strong><p>${esc(result.summary || "Chưa có tóm tắt.")}</p>${result.official_website ? `<button class="button ghost small pressable" data-action="website" data-value="${esc(result.official_website)}">${icon("external-link")} Website chính thức</button>` : ""}</div><div class="info-section"><h3>Ngành & sản phẩm</h3><p class="subhead">${esc([...(result.industry || []), ...(result.products_services || [])].join(" · ") || "Chưa có dữ liệu")}</p></div><div class="info-section"><h3>Thị trường & khách hàng</h3><p class="subhead">${esc([...(result.markets || []), ...(result.target_customers || [])].join(" · ") || "Chưa có dữ liệu")}</p></div><div class="info-section"><h3>Quy mô & trụ sở</h3><p class="subhead">${esc([result.company_size, result.headquarters].filter(Boolean).join(" · ") || "Chưa có dữ liệu")}</p></div><div class="info-section"><h3>Liên hệ công khai của doanh nghiệp</h3>${(result.public_company_contacts || []).map(item => `<p class="subhead"><strong>${esc(item.label)}</strong>: ${esc(item.value)} <small>(${esc(item.category)})</small></p>`).join("") || '<p class="subhead">Chưa có dữ liệu</p>'}<small class="source">Độ tin cậy ${esc(result.confidence)}% · nghiên cứu ${esc(result.researched_at || "—")}</small></div><div class="info-section"><h3>Nguồn</h3>${(result.sources || []).map(source => `<p><a href="${esc(source.url)}" target="_blank" rel="noopener noreferrer">${esc(source.title)}</a><br><small class="source">${esc(source.retrieved_at)}</small></p>`).join("") || '<p class="subhead">Chưa có nguồn.</p>'}</div>` : `<p class="subhead">${esc(state.message || state.reason || "BCard chỉ nghiên cứu khi có website chính thức hoặc email tên miền doanh nghiệp.")}</p>`}</div></section>`;
 }
 
 async function researchCompany(contact, { manual = false, force = false } = {}) {
   if (!production?.research || !contact) return;
   const relationship = primaryRelationship(contact);
-  await production.research.enqueue({ companyName: relationship.company, website: relationship.website, businessEmail: preferredMethod(contact, "EMAIL")?.value || "" }, { manual, force });
+  const tenantCompanyId = relationship.companyId || (relationship.id ? `company_${relationship.id}` : "");
+  await production.research.enqueue({ tenantCompanyId, companyName: relationship.company, website: relationship.website, businessEmail: preferredMethod(contact, "EMAIL")?.value || "" }, { manual, force });
   if (selectedContactId === contact.id) render();
+}
+
+async function syncThenResearch(contact) {
+  if (!production?.research || !contact || !data.settings.autoResearch) return;
+  if (!production.configured) return researchCompany(contact);
+  if (!production.ownerId || !data.settings.online) return;
+  await production.sync.process();
+  const relationship = primaryRelationship(contact);
+  const tenantCompanyId = relationship.companyId || (relationship.id ? `company_${relationship.id}` : "");
+  if (!tenantCompanyId) return;
+  const pending = await production.db.listOperations(production.ownerId, ["PENDING", "RETRY_WAIT", "AUTH_REQUIRED", "RECONCILE_REQUIRED", "CONFLICT", "IN_FLIGHT"]);
+  if (pending.some(item => item.object_type === "tenant_company" && item.object_id === tenantCompanyId)) return;
+  return researchCompany(contact);
+}
+
+async function researchSyncedContacts() {
+  if (!production?.configured || !production.ownerId || !production.research || !data.settings.autoResearch || !data.settings.online) return;
+  const contacts = data.contacts.filter(contact => contact.lifecycle === "ACTIVE" && contact.sync === "COMPLETE" && primaryRelationship(contact)?.company);
+  await Promise.allSettled(contacts.map(contact => researchCompany(contact)));
 }
 
 function renderCards() {
@@ -991,10 +1012,11 @@ async function persistScan(images, fields, attachContactId = "", ocrResult = nul
   const cardId = `card_${stamp}`;
   const code = `NC-${1000 + data.cards.length + 1}`;
   const source = `Card #${code}`;
+  const sourceRef = { sourceType: "CARD", sourceObjectId: cardId, sourceVersion: 1 };
   const initials = fields.name.split(/\s+/).slice(-2).map(x => x[0]).join("").toUpperCase();
   const methods = [];
-  if (fields.phone) methods.push({ id: `m_${stamp}_p`, kind: "PHONE", label: "Di động", value: fields.phone, preferred: true, status: "ACTIVE", source, confirmed: fields.userConfirmed });
-  if (fields.email) methods.push({ id: `m_${stamp}_e`, kind: "EMAIL", label: "Công việc", value: fields.email, preferred: true, status: "ACTIVE", source, confirmed: fields.userConfirmed });
+  if (fields.phone) methods.push({ id: `m_${stamp}_p`, kind: "PHONE", label: "Di động", value: fields.phone, preferred: true, status: "ACTIVE", source, sourceCardId: cardId, sourceCardVersion: 1, provenanceSources: [sourceRef], confirmed: fields.userConfirmed, confirmedAt: fields.userConfirmed ? now.toISOString() : "" });
+  if (fields.email) methods.push({ id: `m_${stamp}_e`, kind: "EMAIL", label: "Công việc", value: fields.email, preferred: true, status: "ACTIVE", source, sourceCardId: cardId, sourceCardVersion: 1, provenanceSources: [sourceRef], confirmed: fields.userConfirmed, confirmedAt: fields.userConfirmed ? now.toISOString() : "" });
   let proposalCount = 0;
   const saved = await commitMutation(() => {
     let scanEvent = data.events.find(item => item.name.toLocaleLowerCase("vi") === fields.eventName.toLocaleLowerCase("vi"));
@@ -1013,6 +1035,18 @@ async function persistScan(images, fields, attachContactId = "", ocrResult = nul
       const contact = data.contacts.find(item => item.id === attachContactId);
       if (!contact) throw new Error("Contact no longer exists");
       const proposals = logic.buildAttachProposals(contact, fields, source, () => `prop_${stamp}_${++proposalCount}`);
+      proposals.forEach(proposal => { proposal.sourceCardId = cardId; proposal.sourceCardVersion = 1; });
+      const addSource = target => {
+        target.provenanceSources ||= [];
+        if (!target.provenanceSources.some(item => item.sourceObjectId === cardId)) target.provenanceSources.push(sourceRef);
+      };
+      if (logic.normalizeName(contact.name) === logic.normalizeName(fields.name)) { contact.nameProvenanceSources ||= []; if (!contact.nameProvenanceSources.some(item => item.sourceObjectId === cardId)) contact.nameProvenanceSources.push(sourceRef); }
+      const samePhone = contact.methods.find(item => item.status === "ACTIVE" && item.kind === "PHONE" && logic.normalizePhone(item.value) === logic.normalizePhone(fields.phone));
+      const sameEmail = contact.methods.find(item => item.status === "ACTIVE" && item.kind === "EMAIL" && logic.normalizeEmail(item.value) === logic.normalizeEmail(fields.email));
+      if (fields.phone && samePhone) addSource(samePhone);
+      if (fields.email && sameEmail) addSource(sameEmail);
+      const sameRelationship = contact.relationships.find(item => item.status === "ACTIVE" && logic.normalizeName(item.company) === logic.normalizeName(fields.company));
+      if (fields.company && sameRelationship) addSource(sameRelationship);
       data.proposals.unshift(...proposals);
       contact.cards.unshift(cardId);
       contact.encounters ||= [];
@@ -1024,7 +1058,7 @@ async function persistScan(images, fields, attachContactId = "", ocrResult = nul
       contact.sync = "PENDING";
       contact.lastMet = "Vừa xong";
     } else {
-      data.contacts.unshift({ id, name: fields.name, nameSource: source, initials, color: "peach", draft: !fields.userConfirmed, methods, personalUrl: "", relationships: fields.company ? [{ id: `rel_${stamp}`, company: fields.company, role: fields.role, status: "ACTIVE", primary: true, website: fields.website, source }] : [], tags: fields.userConfirmed ? [] : ["Chưa xác nhận"], event: fields.eventName, encounters: [{ id: `enc_${stamp}`, event: fields.eventName, event_id: scanEvent?.id || "", date: now.toISOString(), source, cardId }], notes: fields.note ? [{ id: `n_${stamp}`, text: fields.note, date: "Vừa xong", sync: "PENDING", source }] : [], cards: [cardId], version: 1, sync: "PENDING", lifecycle: "ACTIVE", incident: "NONE", lastMet: "Vừa xong" });
+      data.contacts.unshift({ id, name: fields.name, nameSource: source, nameSourceCardId: cardId, nameSourceCardVersion: 1, nameProvenanceSources: [sourceRef], nameConfirmed: fields.userConfirmed, nameConfirmedAt: fields.userConfirmed ? now.toISOString() : "", initials, color: "peach", draft: !fields.userConfirmed, methods, personalUrl: "", relationships: fields.company ? [{ id: `rel_${stamp}`, company: fields.company, role: fields.role, status: "ACTIVE", primary: true, website: fields.website, source, sourceCardId: cardId, sourceCardVersion: 1, provenanceSources: [sourceRef], confirmed: fields.userConfirmed, confirmedAt: fields.userConfirmed ? now.toISOString() : "" }] : [], tags: fields.userConfirmed ? [] : ["Chưa xác nhận"], event: fields.eventName, encounters: [{ id: `enc_${stamp}`, event: fields.eventName, event_id: scanEvent?.id || "", date: now.toISOString(), source, cardId }], notes: fields.note ? [{ id: `n_${stamp}`, text: fields.note, date: "Vừa xong", sync: "PENDING", source }] : [], cards: [cardId], version: 1, sync: "PENDING", lifecycle: "ACTIVE", incident: "NONE", lastMet: "Vừa xong" });
     }
     data.cards.unshift({
       id: cardId, code, contactId: attachContactId || id, name: fields.name, company: fields.company, role: fields.role,
@@ -1042,7 +1076,7 @@ async function persistScan(images, fields, attachContactId = "", ocrResult = nul
   setRoute("contacts", { contactId: attachContactId || id });
   toast("Đã lưu bền trên thiết bị", attachContactId ? `Card đã liên kết; có ${proposalCount} đề xuất cần duyệt.` : "Card đạt LOCAL_ACCEPTED và đã vào hàng đợi đồng bộ.");
   const savedContact = data.contacts.find(contact => contact.id === (attachContactId || id));
-  researchCompany(savedContact).catch(() => {});
+  syncThenResearch(savedContact).catch(() => {});
 }
 
 function openNote(contactId) {
@@ -1065,7 +1099,7 @@ function openCard(id) {
   const card = data.cards.find(c => c.id === id); if (!card) return;
   const verification = card.reviewStatus === "USER_CONFIRMED" ? `Đã xác nhận ${esc(card.reviewConfidence)}% · ` : "";
   const ocrEvidence = card.rawOcr ? `<details class="ocr-evidence"><summary>${verification}OCR ${esc(card.ocrLanguage || "vie+eng")} · chất lượng ${esc(card.ocrConfidence || 0)}%</summary><p>Giá trị OCR gốc được giữ riêng với dữ liệu đã xác nhận. Có ${esc(card.corrections?.length || 0)} chỉnh sửa của người dùng.</p><pre>${esc(card.rawOcr)}</pre></details>` : `<p class="source ocr-evidence-empty">Card này chưa có dữ liệu OCR gốc.</p>`;
-  showModal(`<div class="modal-head"><div><p class="eyebrow">Snapshot lịch sử · v${esc(card.version)}</p><h2>${esc(card.code)}</h2></div>${closeIconButton()}</div><div class="modal-body"><div class="scan-layout"><div class="card-visual card-visual-detail ${esc(card.theme)}">${card.front ? `<img src="${esc(card.front)}" alt="Mặt trước"/>` : `<strong>${esc(card.name)}</strong><span>${esc(card.role)}</span><small>${esc(card.company)}</small>`}</div><div class="card-visual card-visual-detail light">${card.back ? `<img src="${esc(card.back)}" alt="Mặt sau"/>` : `<strong>${card.backBlank ? "Mặt sau đã xác nhận trống" : "Ảnh mặt sau mẫu"}</strong><span>${esc(card.event)}</span><small>${esc(card.scanned)}</small>`}</div></div><div class="sync-summary sync-summary-modal"><div class="metric"><strong class="metric-state">${esc(card.acceptance)}</strong><small>Acceptance</small></div><div class="metric"><strong class="metric-state">${esc(card.sync)}</strong><small>Sync card v${esc(card.version)}</small></div><div class="metric"><strong class="metric-state">${esc(card.lifecycle)}</strong><small>Lifecycle</small></div><div class="metric"><strong class="metric-state">${esc(card.incident)}</strong><small>Incident</small></div></div>${ocrEvidence}</div><div class="modal-footer"><button class="button danger pressable" id="deleteCard">${icon("trash-2")} Xóa card</button><button class="button secondary pressable" id="relinkCard">${icon("link")} Sửa liên kết</button>${card.reviewStatus !== "USER_CONFIRMED" ? `<button class="button pressable" id="confirmCardReview">${icon("badge-check")} Xác nhận đã đối chiếu</button>` : ""}<button class="button secondary pressable" data-close>Đóng</button></div>`, true);
+  showModal(`<div class="modal-head"><div><p class="eyebrow">Snapshot lịch sử · v${esc(card.version)}</p><h2>${esc(card.code)}</h2></div>${closeIconButton()}</div><div class="modal-body"><div class="scan-layout"><div class="card-visual card-visual-detail ${esc(card.theme)}">${card.front ? `<img src="${esc(card.front)}" alt="Mặt trước"/>` : `<strong>${esc(card.name)}</strong><span>${esc(card.role)}</span><small>${esc(card.company)}</small>`}</div><div class="card-visual card-visual-detail light">${card.back ? `<img src="${esc(card.back)}" alt="Mặt sau"/>` : `<strong>${card.backBlank ? "Mặt sau đã xác nhận trống" : "Ảnh mặt sau mẫu"}</strong><span>${esc(card.event)}</span><small>${esc(card.scanned)}</small>`}</div></div><div class="sync-summary sync-summary-modal"><div class="metric"><strong class="metric-state">${esc(card.acceptance)}</strong><small>Acceptance</small></div><div class="metric"><strong class="metric-state">${esc(card.sync)}</strong><small>Lịch sử content sync</small></div><div class="metric"><strong class="metric-state">${esc(card.lifecycle)}</strong><small>Lifecycle</small></div>${card.lifecycle === "DELETED" ? `<div class="metric"><strong class="metric-state">${esc(card.deletePropagation || "PENDING")}</strong><small>Delete propagation</small></div>` : `<div class="metric"><strong class="metric-state">${esc(card.incident)}</strong><small>Incident</small></div>`}</div>${ocrEvidence}</div><div class="modal-footer"><button class="button danger pressable" id="deleteCard">${icon("trash-2")} Xóa card</button><button class="button secondary pressable" id="relinkCard">${icon("link")} Sửa liên kết</button>${card.reviewStatus !== "USER_CONFIRMED" ? `<button class="button pressable" id="confirmCardReview">${icon("badge-check")} Xác nhận đã đối chiếu</button>` : ""}<button class="button secondary pressable" data-close>Đóng</button></div>`, true);
   document.getElementById("deleteCard").addEventListener("click", () => deleteCard(id));
   document.getElementById("relinkCard").addEventListener("click", () => openRelinkCard(id));
   document.getElementById("confirmCardReview")?.addEventListener("click", () => confirmCardReview(id));
@@ -1083,7 +1117,9 @@ async function confirmCardReview(id) {
     const contact = data.contacts.find(item => item.id === card.contactId);
     if (contact) {
       const source = `Card #${card.code}`;
-      contact.methods.filter(method => method.source === source && method.status === "ACTIVE").forEach(method => { method.confirmed = true; });
+      contact.methods.filter(method => method.source === source && method.status === "ACTIVE").forEach(method => { method.confirmed = true; method.confirmedAt = card.confirmedAt; });
+      contact.relationships.filter(relationship => relationship.source === source && relationship.status === "ACTIVE").forEach(relationship => { relationship.confirmed = true; relationship.confirmedAt = card.confirmedAt; });
+      if (contact.nameSource === source) { contact.nameConfirmed = true; contact.nameConfirmedAt = card.confirmedAt; }
       contact.draft = false;
       contact.tags = contact.tags.filter(tag => tag !== "Chưa xác nhận");
       contact.version += 1;
@@ -1152,7 +1188,7 @@ async function deleteCard(id) {
   const saved = await commitMutation(() => {
     const card = data.cards.find(c => c.id === id); if (!card) throw new Error("Card no longer exists");
     card.lifecycle = "DELETED";
-    card.sync = "PENDING";
+    card.deletePropagation = "PENDING";
     card.version = Number(card.version || 0) + 1;
     card.purgedEvidenceSummary = { hadFront: Boolean(card.front), hadBack: Boolean(card.back), hadRawOcr: Boolean(card.rawOcr), correctionCount: card.corrections?.length || 0 };
     card.front = "";
@@ -1216,17 +1252,19 @@ async function resolveProposal(id, approve) {
 }
 
 function applyApprovedProposal(contact, proposal) {
+  const sourceRef = proposal.sourceCardId ? { sourceType: "CARD", sourceObjectId: proposal.sourceCardId, sourceVersion: Number(proposal.sourceCardVersion || 1) } : null;
+  const sourceFields = sourceRef ? { sourceCardId: sourceRef.sourceObjectId, sourceCardVersion: sourceRef.sourceVersion, provenanceSources: [sourceRef] } : {};
   if (proposal.kind === "ADD" && ["PHONE", "EMAIL"].includes(proposal.target)) {
-    contact.methods.push({ id: `m_${Date.now()}`, kind: proposal.target, label: proposal.metadata?.label || "Khác", value: proposal.value, preferred: false, status: "ACTIVE", source: proposal.source, confirmed: true });
+    contact.methods.push({ id: `m_${Date.now()}`, kind: proposal.target, label: proposal.metadata?.label || "Khác", value: proposal.value, preferred: false, status: "ACTIVE", source: proposal.source, ...sourceFields, confirmed: true, confirmedAt: new Date().toISOString() });
   }
-  if (proposal.kind === "ADD" && proposal.target === "PERSONAL_URL") contact.personalUrl = proposal.value;
+  if (proposal.kind === "ADD" && proposal.target === "PERSONAL_URL") { contact.personalUrl = proposal.value; contact.personalUrlSource = proposal.source; contact.personalUrlSourceCardId = proposal.sourceCardId; contact.personalUrlSourceCardVersion = proposal.sourceCardVersion; contact.personalUrlProvenanceSources = sourceRef ? [sourceRef] : []; }
   if (proposal.kind === "ADD" && proposal.target === "RELATIONSHIP") {
-    contact.relationships.push({ id: `rel_${Date.now()}`, company: proposal.metadata?.company || proposal.value, role: proposal.metadata?.role || "", website: proposal.metadata?.website || "", status: "ACTIVE", primary: false, source: proposal.source });
+    contact.relationships.push({ id: `rel_${Date.now()}`, company: proposal.metadata?.company || proposal.value, role: proposal.metadata?.role || "", website: proposal.metadata?.website || "", status: "ACTIVE", primary: false, source: proposal.source, ...sourceFields, confirmed: true, confirmedAt: new Date().toISOString() });
   }
   if (["UPDATE", "REMOVE"].includes(proposal.kind) && ["PHONE", "EMAIL"].includes(proposal.target)) {
     const method = contact.methods.find(item => item.id === proposal.targetId);
     if (!method) throw new Error("Proposal target no longer exists");
-    if (proposal.kind === "UPDATE") { method.value = proposal.value; method.source = proposal.source; method.confirmed = true; }
+    if (proposal.kind === "UPDATE") { method.value = proposal.value; method.source = proposal.source; Object.assign(method, sourceFields); method.confirmed = true; method.confirmedAt = new Date().toISOString(); }
     else { method.status = "REVOKED"; method.source = proposal.source; }
   }
   if (["UPDATE", "REMOVE"].includes(proposal.kind) && proposal.target === "RELATIONSHIP") {
@@ -1236,14 +1274,18 @@ function applyApprovedProposal(contact, proposal) {
       relationship.role = proposal.metadata?.role ?? relationship.role;
       relationship.website = proposal.metadata?.website ?? relationship.website;
       relationship.source = proposal.source;
+      Object.assign(relationship, sourceFields);
     } else { relationship.status = "REVOKED"; relationship.source = proposal.source; }
   }
   if (proposal.kind === "UPDATE" && proposal.target === "NAME") {
     contact.name = proposal.value;
     contact.nameSource = proposal.source;
+    contact.nameSourceCardId = proposal.sourceCardId;
+    contact.nameSourceCardVersion = proposal.sourceCardVersion;
+    contact.nameProvenanceSources = sourceRef ? [sourceRef] : [];
     contact.initials = proposal.value.split(/\s+/).slice(-2).map(part => part[0]).join("").toUpperCase();
   }
-  if (proposal.kind === "UPDATE" && proposal.target === "PERSONAL_URL") contact.personalUrl = proposal.value;
+  if (proposal.kind === "UPDATE" && proposal.target === "PERSONAL_URL") { contact.personalUrl = proposal.value; contact.personalUrlSource = proposal.source; contact.personalUrlSourceCardId = proposal.sourceCardId; contact.personalUrlSourceCardVersion = proposal.sourceCardVersion; contact.personalUrlProvenanceSources = sourceRef ? [sourceRef] : []; }
   if (proposal.kind === "REMOVE" && proposal.target === "PERSONAL_URL") contact.personalUrl = "";
 }
 
@@ -1253,15 +1295,16 @@ async function syncNow() {
   toast("Đang đối soát", "Kiểm tra từng object và phiên bản…");
   $(".status-pill.pending").text("Đang tải…");
   const result = await production.sync.process({ manual: true });
-  const operations = await production.db.listOperations(production.ownerId, ["PENDING", "RETRY_WAIT", "AUTH_REQUIRED", "CONFLICT"]);
+  const operations = await production.db.listOperations(production.ownerId, ["PENDING", "RETRY_WAIT", "AUTH_REQUIRED", "RECONCILE_REQUIRED", "CONFLICT"]);
   const complete = operations.length === 0;
   data.settings.syncIssues = operations.map(item => ({ type: item.object_type, objectId: item.object_id, status: item.sync_status, error: item.last_error_code || "" }));
   if (complete) {
     await commitMutation(() => {
       data.contacts.forEach(c => { if (c.lifecycle === "ACTIVE") c.sync = "COMPLETE"; c.notes.forEach(n => n.sync = "COMPLETE"); });
-      data.cards.forEach(c => { if (["ACTIVE", "DELETED"].includes(c.lifecycle)) c.sync = "COMPLETE"; });
+      data.cards.forEach(c => { if (c.lifecycle === "ACTIVE") c.sync = "COMPLETE"; else if (c.lifecycle === "DELETED") c.deletePropagation = "COMPLETE"; });
       data.settings.lastSync = "Vừa xong";
     });
+    researchSyncedContacts().catch(() => {});
   }
   render();
   toast(complete ? "Đồng bộ hoàn tất" : "Đồng bộ còn chờ", complete ? `Server đã ACK ${result.processed || 0} object.` : `${operations.length} operation cần retry, đăng nhập hoặc xử lý conflict.`);
@@ -1392,6 +1435,7 @@ function bindAuthGate() {
     data = normalizeStoredData(loaded || { settings: { accountId: production.ownerId }, events: [], contacts: [], cards: [], proposals: [] });
     production.research?.setAutoEnabled(data.settings.autoResearch ?? production.config?.autoResearch ?? true);
     setAuthGate(false); render(); updateChrome();
+    researchSyncedContacts().catch(() => {});
   });
 }
 
@@ -1411,6 +1455,7 @@ $(async function () {
   }
   if (!production?.configured || production.ownerId) setAuthGate(false);
   production?.research?.setAutoEnabled(data.settings.autoResearch ?? production.config?.autoResearch ?? true);
+  researchSyncedContacts().catch(() => {});
   const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
   let storedTheme = "";
   try { storedTheme = localStorage.getItem("memento-theme") || ""; }
