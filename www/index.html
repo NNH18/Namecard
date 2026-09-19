@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#f3f6ff" />
   <meta name="color-scheme" content="light dark" />
   <meta name="description" content="BCard quét namecard Việt/Anh, lưu danh bạ và tìm kiếm ngay trên thiết bị." />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self' blob:; form-action 'self'" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self' blob: https://*.supabase.co; form-action 'self'" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -23,7 +23,7 @@
   <div class="ambient ambient-one" aria-hidden="true"></div>
   <div class="ambient ambient-two" aria-hidden="true"></div>
 
-  <div class="app-shell">
+  <div class="app-shell" aria-hidden="true">
     <aside class="sidebar">
       <button class="brand pressable" data-route="home" aria-label="Về tổng quan">
         <span class="brand-mark"><span>B</span></span>
@@ -68,6 +68,19 @@
     </nav>
   </div>
 
+  <section class="auth-gate" id="authGate" aria-labelledby="authTitle">
+    <form class="auth-card" id="authForm">
+      <span class="brand-mark"><span>B</span></span>
+      <p class="eyebrow">BCard bảo mật</p><h1 id="authTitle">Đăng nhập</h1>
+      <p class="subhead" id="authDescription">Đăng nhập để mở danh bạ riêng của bạn.</p>
+      <div class="field"><label for="authEmail">Email</label><input id="authEmail" type="email" autocomplete="email" required /></div>
+      <div class="field"><label for="authPassword">Mật khẩu</label><input id="authPassword" type="password" autocomplete="current-password" minlength="8" required /></div>
+      <p class="auth-error" id="authError" role="alert"></p>
+      <button class="button" id="authSubmit" type="submit">Đăng nhập</button>
+      <button class="button ghost" id="authMode" type="button">Tạo tài khoản mới</button>
+    </form>
+  </section>
+
   <div class="modal-backdrop" id="modalBackdrop" hidden></div>
   <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
   <input type="file" id="frontFile" accept="image/*" capture="environment" hidden />
@@ -75,6 +88,17 @@
   <script src="vendor/jquery.min.js"></script>
   <script src="vendor/lucide.min.js"></script>
   <script src="vendor/tesseract/tesseract.min.js"></script>
+  <script src="config.public.js"></script>
+  <script src="lib/config.js"></script>
+  <script src="lib/company-resolver.js"></script>
+  <script src="lib/local-db.js"></script>
+  <script src="lib/supabase.js"></script>
+  <script src="lib/auth.js"></script>
+  <script src="lib/storage.js"></script>
+  <script src="lib/repository.js"></script>
+  <script src="lib/sync.js"></script>
+  <script src="lib/company-research.js"></script>
+  <script src="lib/production.js"></script>
   <script src="logic.js"></script>
   <script src="ocr.js"></script>
   <script src="app.js"></script>

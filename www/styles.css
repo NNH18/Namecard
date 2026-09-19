@@ -491,3 +491,8 @@ input[aria-invalid="true"] { border-color: var(--color-destructive); box-shadow:
   :root { --color-border: color-mix(in srgb, var(--color-foreground) 42%, transparent); }
   .subhead, .source, small { color: var(--color-foreground); }
 }
+/* Authentication is isolated from the private application shell. */
+.auth-gate{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 20% 10%,rgba(39,103,235,.22),transparent 36%),var(--bg,#f3f6ff)}
+.auth-gate[hidden]{display:none}
+.auth-card{width:min(100%,420px);display:grid;gap:16px;padding:32px;border:1px solid var(--line,#dce3f2);border-radius:28px;background:var(--surface,#fff);box-shadow:0 24px 70px rgba(22,37,76,.18)}
+.auth-card .brand-mark{width:52px;height:52px}.auth-card h1{margin:0}.auth-card .field{display:grid;gap:7px}.auth-error{min-height:1.4em;margin:0;color:#b42318;font-weight:700}.app-shell[aria-hidden="true"]{visibility:hidden}

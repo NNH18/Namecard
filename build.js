@@ -12,6 +12,22 @@ for (const file of sourceFiles) {
   fs.copyFileSync(path.join(projectRoot, file), path.join(outputRoot, file));
 }
 
+fs.cpSync(path.join(projectRoot, "lib"), path.join(outputRoot, "lib"), { recursive: true });
+const publicConfig = {
+  SUPABASE_URL: process.env.SUPABASE_URL || "",
+  SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || "",
+  AUTO_RESEARCH: process.env.BCARD_AUTO_RESEARCH || "true",
+  COMPANY_RESEARCH_CACHE_DAYS: process.env.BCARD_RESEARCH_CACHE_DAYS || "30",
+  MAX_IMAGE_BYTES: process.env.BCARD_MAX_IMAGE_BYTES || "15728640"
+};
+if (Object.keys(process.env).some(key => ["OPENAI_API_KEY", "SUPABASE_SERVICE_ROLE_KEY", "SERVICE_ROLE_KEY"].includes(key) && publicConfig[key])) throw new Error("Server secret cannot be written to web assets");
+fs.writeFileSync(path.join(outputRoot, "config.public.js"), `window.BCARD_PUBLIC_CONFIG=${JSON.stringify(publicConfig)};\n`);
+if (publicConfig.SUPABASE_URL) {
+  const origin = new URL(publicConfig.SUPABASE_URL).origin;
+  const builtIndex = path.join(outputRoot, "index.html");
+  fs.writeFileSync(builtIndex, fs.readFileSync(builtIndex, "utf8").replace("https://*.supabase.co", origin));
+}
+
 const vendorFiles = [
   [path.join(projectRoot, "node_modules", "jquery", "dist", "jquery.min.js"), "jquery.min.js"],
   [path.join(projectRoot, "node_modules", "lucide", "dist", "umd", "lucide.min.js"), "lucide.min.js"]

@@ -46,6 +46,7 @@ function createAppSandbox() {
     setTimeout() { return 0; }, clearTimeout() {},
     document, localStorage: storage, navigator: {},
     window: {
+      __BCARD_TEST__: true,
       BCardLogic: logic,
       matchMedia() { return { matches: false }; },
       scrollTo() {}, location: { href: "" },

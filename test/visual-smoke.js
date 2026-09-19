@@ -58,7 +58,7 @@ async function verifyDuplicateFlow(browser) {
   });
   await page.locator("#mobileScan").click();
   assert(await page.locator("[data-camera-target]").count() === 2, "Thiếu nút camera cho hai mặt card");
-  await page.locator("#frontFile").setInputFiles(path.join(process.cwd(), "icon.svg"));
+  await page.locator("#frontFile").setInputFiles(path.join(process.cwd(), "icon-192.png"));
   await page.locator("#backBlank").check();
   await page.locator("#scanContinue").click();
   await page.locator("#ocrStatus.complete").waitFor();
@@ -123,7 +123,7 @@ async function verifyActiveEventAutofill(browser) {
     window.BCardOCR.recognize = async () => ({ name: "Test Event", role: "", company: "", phone: "0901234567", email: "test@example.com", website: "example.com", rawText: "", confidence: 90, language: "vie+eng" });
   });
   await page.evaluate(() => document.getElementById("mobileScan").click());
-  await page.locator("#frontFile").setInputFiles(path.join(process.cwd(), "icon.svg"));
+  await page.locator("#frontFile").setInputFiles(path.join(process.cwd(), "icon-192.png"));
   await page.locator("#backBlank").check();
   await page.locator("#scanContinue").click();
   await page.locator("#ocrStatus.complete").waitFor();
@@ -157,14 +157,14 @@ async function verifyPersistenceRollback(browser) {
   await page.locator(".bottom-nav [data-route='contacts']").click();
   await page.locator("[data-contact='ct_anh']").click();
   await page.evaluate(() => {
-    Storage.prototype.setItem = function () { throw new DOMException("Quota full", "QuotaExceededError"); };
+    window.BCardProduction.repository.save = async () => { throw new DOMException("Quota full", "QuotaExceededError"); };
   });
   await page.locator("[data-action='add-note']").click();
   await page.locator("#noteText").fill("Ghi chú không được phép báo lưu thành công");
   await page.locator("#saveNote").click();
   await page.getByText("Không thể lưu trên thiết bị", { exact: true }).waitFor();
   assert(await page.locator(".modal").isVisible(), "Modal bị đóng dù lưu thất bại");
-  const persisted = await page.evaluate(() => localStorage.getItem("memento-p0-data-v1") || "");
+  const persisted = await page.evaluate(async () => JSON.stringify(await window.BCardProduction.repository.load()));
   assert(!persisted.includes("Ghi chú không được phép báo lưu thành công"), "Dữ liệu lỗi vẫn bị ghi nhận");
   assert(cspErrors.length === 0, `Rollback có lỗi CSP: ${cspErrors.join(" | ")}`);
   await page.close();

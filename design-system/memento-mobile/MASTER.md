@@ -201,6 +201,31 @@ gsap.from('.grid-item', { opacity: 0, scale: 0.92, y: 16, duration: 0.4, stagger
 
 ---
 
+## Company Research UI (Required for Production Completion)
+
+Contact/Company Detail phải có một section Company Research phù hợp component/tokens hiện có, không tạo visual language riêng.
+
+Các trạng thái bắt buộc:
+
+- `not_researched`
+- `resolving`
+- `researching`
+- `completed`
+- `unresolved`
+- `failed`
+
+Yêu cầu hiển thị:
+
+- Tách rõ “Liên hệ cá nhân” và “Thông tin công khai của doanh nghiệp”.
+- `resolving`/`researching` có status text và progress semantics, không chỉ spinner.
+- `unresolved`/`failed` giải thích ngắn, có retry/manual research nhưng không chặn xem contact.
+- `completed` hiển thị facts, nguồn, thời điểm research, trạng thái freshness và Refresh action.
+- Source link có accessible name, domain dễ nhận biết và không làm vỡ layout mobile.
+- Auto Research setting phải diễn đạt tác động dữ liệu rõ ràng; tắt setting không ẩn hoặc xóa kết quả đã có.
+- Không trộn mobile/email cá nhân từ card vào public company contact.
+
+---
+
 ## Anti-Patterns (Do NOT Use)
 
 

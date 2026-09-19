@@ -1,22 +1,22 @@
 **BCard — Bản tư vấn phát triển ứng dụng “Danh bạ thứ 2” cho quan hệ kinh doanh**
 
-**Bản 5.5 — freeze candidate: khóa contact methods, provenance lifecycle và dependency contract.**
+**Bản 5.6 — completion scope amendment: Company Research tự động là requirement bắt buộc.**
 
-Cập nhật ngày 08/09/2026. Baseline cho technical discovery, lấy báo giá và rà soát pháp lý/bảo mật; các ước tính chưa phải cam kết triển khai.
+Cập nhật ngày 11/09/2026. Baseline cho technical discovery, lấy báo giá và rà soát pháp lý/bảo mật; phạm vi bản hoàn thiện gồm core P0 và Company Research tự động, các ước tính chưa phải cam kết triển khai.
 
 **Tên sản phẩm:** BCard.
 
 **Mô hình sản phẩm mục tiêu:** mọi card được app tiếp nhận tại LOCAL_ACCEPTED theo mục 4 thuộc trách nhiệm lưu bền và đối soát theo mục 4; sync nội dung khi nghĩa vụ còn hiệu lực, lifecycle có thể supersede upload không cần thiết. Acceptance, sync từng object/version, lifecycle và incident được theo dõi riêng. Dữ kiện có cấu trúc ở database, ảnh ở kho riêng tư liên kết với bản ghi; mỗi tài khoản có danh bạ riêng. Đây là định hướng sản phẩm, chưa phải kết luận pháp lý/store cho full build hoặc dữ liệu thật.
 
-P0 là release pilot độc lập, giữ card/contact/company riêng theo tài khoản và không có định danh công ty chung giữa các tenant. P1 chỉ mở sau gate pilot, có thể bổ sung research có nguồn và tính năng thương mại theo nhu cầu đã kiểm chứng. Voice note là experiment không được ảnh hưởng release; lọc ngành dùng nhãn, pilot có đối chứng.
+P0 là core pilot độc lập, giữ card/contact/company riêng theo tài khoản và không có định danh người dùng chung giữa các tenant. **Bản hoàn thiện project hiện tại bắt buộc gồm toàn bộ P0 cùng Company Research tự động có resolver, nguồn, cache và UI; không chờ gate P1 để xây module này.** Các tính năng thương mại và mở rộng khác vẫn chỉ mở sau gate pilot. Voice note là experiment không được ảnh hưởng release; lọc ngành dùng nhãn, pilot có đối chứng.
 
-Dùng bản 5.5 này cho technical discovery, legal opinion, báo giá P0, technical specification và prototype, sau đó mới quyết định ký full implementation P0.
+Dùng bản 5.6 này cho technical discovery, legal opinion, báo giá core P0 và technical specification; khi áp dụng cho `BCARD_PRODUCTION_COMPLETION_PROMPT.md`, phạm vi full implementation gồm core P0 cộng Company Research tự động bắt buộc.
 
-**Trạng thái quyết định:** GO ngay cho discovery, báo giá, legal/store analysis và prototype bằng dữ liệu giả. Full P0 production implementation và pilot namecard thật là **Conditional GO** theo **Core P0 Legal & Store Gate** ở mục 9 và các blocking requirements của bước tương ứng. Bản này không ghi nhận gate đã đạt. **Cần ý kiến luật sư/store review strategy trước full implementation hoặc pilot dữ liệu thật.**
+**Trạng thái quyết định:** GO ngay cho discovery, báo giá, legal/store analysis và prototype bằng dữ liệu giả. Full production completion, bao gồm Company Research tự động, và pilot namecard thật là **Conditional GO** theo **Core P0 Legal & Store Gate** ở mục 9 cùng các blocking requirements của research/vendor. Bản này không ghi nhận gate đã đạt. **Cần ý kiến luật sư/store review strategy trước full implementation hoặc pilot dữ liệu thật.**
 
 Các mốc thời gian, ngân sách, giá bán và chỉ tiêu là giả định lập kế hoạch, cần kiểm chứng bằng pilot và báo giá. Các phương án mở rộng là đề xuất; phần pháp lý cần được đối chiếu với thiết kế vận hành cụ thể.
 
-**Cách đọc để chuyển sang specification:** [NORMATIVE P0] là requirement/boundary phải build/test hoặc điều kiện dự án phải đạt; [DISCOVERY DECISION] là implementation chưa chốt; [P1 / NON-P0] không estimate vào P0; [LEGAL REVIEW INPUT] là đầu vào rà pháp lý/store, không kết luận được phép; [PILOT HYPOTHESIS] là giả định cần thử, không phải yêu cầu kỹ thuật. Bảng có nhiều release theo nhãn từng hàng; nhãn hypothesis không nới hard gate.
+**Cách đọc để chuyển sang specification:** [NORMATIVE P0] là requirement/boundary của core P0; **[NORMATIVE COMPLETION] là requirement bắt buộc của bản hoàn thiện hiện tại, gồm toàn bộ P0 và Company Research tự động**; [DISCOVERY DECISION] là implementation chưa chốt; [P1 / NON-P0] chỉ áp dụng cho các module mở rộng khác, không áp dụng cho Company Research; [LEGAL REVIEW INPUT] là đầu vào rà pháp lý/store, không kết luận được phép; [PILOT HYPOTHESIS] là giả định cần thử, không phải yêu cầu kỹ thuật. Nhãn hypothesis không nới hard gate.
 
 ---
 
@@ -28,12 +28,12 @@ Sản phẩm giúp người thường đi networking có một nơi riêng để
 
 Hai phần của hệ thống phục vụ cùng một trải nghiệm:
 
-- **Ứng dụng Android/iOS — Release P0:** quét → lưu local → sync server → danh bạ → tìm kiếm cả khi offline → context/ghi chú → sử dụng thông tin liên hệ bằng basic actions → export dữ liệu tài khoản.
+- **Ứng dụng Android/iOS — bản hoàn thiện:** quét → lưu local → sync server → danh bạ → tìm kiếm cả khi offline → context/ghi chú → basic actions → tự động research doanh nghiệp có nguồn → export dữ liệu tài khoản.
 - **Server và trang quản trị:** tiếp nhận card theo lifecycle ở mục 4, lưu dữ liệu chính, đồng bộ tài khoản, quản lý chất lượng và vận hành theo quyền.
 
 Ví dụ: A có 100 card đạt LOCAL_ACCEPTED, B có 50 thì app đã tiếp nhận 150 card; attach không làm giảm số snapshot. Số card version đã COMPLETE trên server được báo riêng. A thấy danh bạ A, B thấy danh bạ B. Số card không đồng nghĩa số người liên hệ duy nhất.
 
-**P0 có basic contact actions:** mở màn hình gọi, mở email, mở website và sao chép thông tin theo thao tác người dùng, không cần quyền Contacts. Research, reminder, message template, tích hợp Zalo/WhatsApp và ghi sang danh bạ máy thuộc P1 hoặc sau pilot theo mục 5, không cộng vào báo giá P0.
+**P0 có basic contact actions:** mở màn hình gọi, mở email, mở website và sao chép thông tin theo thao tác người dùng, không cần quyền Contacts. **Company Research tự động là requirement bổ sung bắt buộc của bản hoàn thiện**, phải được estimate và nghiệm thu riêng cùng P0. Reminder, message template, tích hợp Zalo/WhatsApp và ghi sang danh bạ máy vẫn thuộc P1 hoặc sau pilot.
 
 Giá trị cốt lõi P0 cần kiểm chứng là tìm lại đúng người, giữ bối cảnh và sử dụng thông tin liên hệ. Search hoạt động trên dữ liệu đã có của tài khoản trên thiết bị, kể cả offline; mở trình gọi/email/browser không chứng minh cuộc gọi hay tin nhắn đã thực hiện. Mục 7 tách basic actions P0 khỏi phone Contacts export và tích hợp nhắn tin P1.
 
@@ -47,12 +47,12 @@ Hồ sơ do chính chủ chủ động cập nhật có thể là hướng phát
 
 ## 2. Ba yêu cầu ban đầu sau khi điều chỉnh
 
-**[P1 / NON-P0]** Bảng mô tả target product; riêng capture/OCR là **[NORMATIVE P0]**. Phạm vi hợp đồng P0 được chốt riêng ở mục 5 và 12, gồm basic contact actions nhẹ. Research, message workflow, tích hợp nhắn tin và phone Contacts export không là điều kiện nghiệm thu P0.
+**[NORMATIVE COMPLETION]** Bảng mô tả target product hiện tại: capture/OCR và core danh bạ là **[NORMATIVE P0]**, còn Company Research tự động là requirement bắt buộc bổ sung của bản hoàn thiện. Message workflow, tích hợp nhắn tin và phone Contacts export không là điều kiện nghiệm thu bản hoàn thiện.
 
 | Yêu cầu ban đầu | Đánh giá | Phạm vi nên triển khai |
 |---|---|---|
 | Chụp hai mặt, trích xuất thông tin | Khả thi | Ghép mặt trước/sau thành một hồ sơ; cho bỏ qua mặt trống; cảnh báo ảnh mờ, lóa; giữ ảnh card đủ rõ để đối chiếu theo chính sách ảnh ở mục 8. |
-| Tìm hiểu và tóm tắt doanh nghiệp | Khả thi, chất lượng phụ thuộc nguồn | Xác định đúng doanh nghiệp/pháp nhân liên quan trước; đọc website chính thức và nguồn phù hợp; mọi dữ kiện có đường dẫn và ngày tra cứu. Là tính năng có hạn mức theo gói và lựa chọn sử dụng. |
+| Tự động tìm hiểu và tóm tắt doanh nghiệp | Bắt buộc trong bản hoàn thiện; chất lượng phụ thuộc nguồn | Sau khi lưu/xác nhận contact, tự enqueue resolver/research; xác định đúng doanh nghiệp trước, đọc website chính thức và nguồn phù hợp, mọi dữ kiện có đường dẫn và ngày tra cứu. Có cache, manual refresh, trạng thái `unresolved` an toàn và setting tắt auto trigger cho lần sau. |
 | Gợi ý số điện thoại liên quan | Khả thi trong phạm vi doanh nghiệp | Hotline, văn phòng, sales, hỗ trợ do doanh nghiệp công bố. Tách bạch với số của người trao card. |
 | Tự động lưu vào danh bạ máy | **Tùy chọn theo nhu cầu** | Xem mục 7. Mặc định giữ trong danh bạ riêng của app và đồng bộ server; người dùng chọn liên hệ cần lưu thêm sang điện thoại. |
 | Tự kết bạn Zalo bằng tài khoản cá nhân | Chưa tìm thấy API công khai chính thức để cam kết | Mở link/QR chính chủ hoặc sao chép số để người dùng tự kết bạn trong Zalo. |
@@ -102,7 +102,7 @@ Correction lỗi OCR là chỉnh sửa có chủ đích gắn với lần scan, 
 
 Một contact có thể đồng thời giữ mobile X từ Card A và office Y từ Card B; Y không mặc định thay X. Technical spec phải trả lời được từng value đến từ đâu, còn ACTIVE không, preferred value nào được chọn và xóa source nào ảnh hưởng value nào.
 
-Source có thể là CARD, USER_INPUT, VERIFIED_SOURCE hoặc SYSTEM_DERIVED; Card B khác Card A bằng source_id và mỗi target value có ID riêng. Đây là phân loại nguồn, không thêm chức năng research P0. Nhiều nguồn cho cùng value có thể lưu nhiều liên kết hoặc current source cùng evidence/reference đủ dùng. **copied_from_card khác user_confirmed**: user xác nhận là action bổ sung, không đổi nguồn card thành USER_INPUT độc lập hoặc xóa provenance. Dữ kiện user tự nhập độc lập phải được ghi đúng nguồn đó.
+Source có thể là CARD, USER_INPUT, VERIFIED_SOURCE hoặc SYSTEM_DERIVED; Card B khác Card A bằng source_id và mỗi target value có ID riêng. Đây là phân loại nguồn dùng chung cho core P0 và Company Research bắt buộc; research không được đổi dữ kiện card thành verified fact nếu chưa có nguồn độc lập. Nhiều nguồn cho cùng value có thể lưu nhiều liên kết hoặc current source cùng evidence/reference đủ dùng. **copied_from_card khác user_confirmed**: user xác nhận là action bổ sung, không đổi nguồn card thành USER_INPUT độc lập hoặc xóa provenance. Dữ kiện user tự nhập độc lập phải được ghi đúng nguồn đó.
 
 **[DISCOVERY DECISION]** Cách lưu field provenance là lựa chọn schema, không bắt bảng riêng/event sourcing. Phải tra được: từng phone/email/URL/title/relationship đến từ đâu, card nào đề xuất, ai/khi nào xác nhận, value nào đang active/preferred và source bị xóa/hạn chế ảnh hưởng target value nào. Lineage chỉ phục vụ consistency/provenance/quyền dữ liệu/audit trong scope, không là people graph.
 
@@ -140,11 +140,11 @@ flowchart TD
 
 Phương án manual/semi-manual vẫn phải có scope, kiểm soát truy cập, review và audit; không mặc định export toàn database ra bảng tính hay cấp support global search. Khi quy mô cần mới cân nhắc restricted indexed locator. Mục 9 chốt quy trình áp dụng; mục 10 chốt quyền và kiểm thử capability theo phương án được chọn.
 
-### [P1 / NON-P0] Nhóm 2 — Dữ kiện doanh nghiệp có nguồn
+### [NORMATIVE COMPLETION] Nhóm 2 — Dữ kiện doanh nghiệp có nguồn
 
-**[NORMATIVE P0] P0 chỉ có tenant company riêng.** Nhóm dữ kiện doanh nghiệp dùng chung chưa tồn tại trong schema hoặc luồng thực thi P0. Không thêm shared ID dự phòng chỉ để đồng nhất công ty giữa các tài khoản.
+**Core P0 chỉ có tenant company riêng; bản hoàn thiện bắt buộc bổ sung resolver, research và verified company facts.** Không bắt buộc shared company graph hoặc liên kết dữ liệu private giữa các tenant; cache dùng chung nếu có chỉ chứa company facts công khai đã qua boundary và policy.
 
-**P1 mới thêm resolver và canonical company khi triển khai research.** Tenant company cung cấp candidate tối thiểu đã kiểm tra; resolver tìm đúng doanh nghiệp, rồi đối chiếu nguồn độc lập. Chỉ facts qua boundary, nguồn và điều kiện sử dụng mới dùng chung. Canonical ID xác định thực thể, không chứng minh mọi dữ kiện đúng. Không copy dữ kiện từ card riêng sang company facts chung.
+**Bản hoàn thiện phải có resolver và Company Research tự động.** Tenant company cung cấp candidate tối thiểu; resolver tìm đúng doanh nghiệp hoặc trả `unresolved`, rồi đối chiếu nguồn độc lập. Chỉ facts qua boundary, nguồn và điều kiện sử dụng mới được cache/tái sử dụng. Resolved company ID chỉ xác định thực thể, không chứng minh mọi dữ kiện đúng. Không copy dữ kiện từ card riêng sang company facts công khai.
 
 Bảng là boundary kỹ thuật đề xuất, không phải danh mục pháp luật bảo đảm an toàn:
 
@@ -184,9 +184,9 @@ flowchart TD
     D --> F[Danh bạ riêng và khôi phục]
     E --> F
     C --> G[Quản trị giới hạn theo ticket]
-    D -. P1 nếu được mở .-> H[Tenant company candidate tối thiểu]
+    D --> H[Tenant company candidate tối thiểu cho research bắt buộc]
     H --> I[Company resolver]
-    I --> J[Canonical company hoặc chưa xác định]
+    I --> J[Resolved company hoặc unresolved]
     J --> K[Nguồn độc lập]
     K --> L[Verified company facts qua boundary]
     L --> F
@@ -261,7 +261,7 @@ Trước khi kết luận local loss, đối soát server/backup vì ACK mất k
 2. Chụp mặt có nội dung/xác nhận mặt trống; commit bền ảnh, snapshot/manifest và dữ liệu phục hồi → LOCAL_ACCEPTED rồi mới báo lưu trên máy.
 3. OCR/kiểm tra sau hoặc xác nhận ngay; contact nháp được gắn nhãn. Gợi ý attach hoặc tạo contact theo mục 5; field khác biệt thành proposal, không tự merge.
 4. Queue đúng account/object/version/dependency; đối soát ACK từng object. Trước tiếp tục content upload, kiểm lifecycle/proposal/source có còn cho phép; xóa/hạn chế supersede phần không cần thiết theo scope, incident báo riêng.
-5. Tìm local/offline, giữ context, dùng tel/mailto/browser/copy và export đúng nguồn hiện hành/lịch sử. Research, reminder/template và phone Contacts export vẫn ngoài P0.
+5. Tìm local/offline, giữ context, dùng tel/mailto/browser/copy và export đúng nguồn hiện hành/lịch sử. Sau khi contact/company đủ điều kiện được lưu, tự enqueue Company Research; reminder/template và phone Contacts export vẫn ngoài bản hoàn thiện.
 
 ### [NORMATIVE P0] Offline search
 
@@ -297,9 +297,9 @@ Khi offline, ghi “Kết quả từ dữ liệu trên thiết bị”; chưa t�
 
 ## 5. Phạm vi MVP và thứ tự ưu tiên
 
-**[NORMATIVE P0]** Hàng P0 là phạm vi bắt buộc; **[P1 / NON-P0]** không vào báo giá P0. Voice experiment là **[PILOT HYPOTHESIS]**, được bỏ và không chặn release.
+**[NORMATIVE COMPLETION]** Hàng P0 và hàng Company Research là phạm vi bắt buộc của bản hoàn thiện; **[P1 / NON-P0]** chỉ áp dụng cho các module mở rộng khác. Voice experiment là **[PILOT HYPOTHESIS]**, được bỏ và không chặn release.
 
-**Release P0 — Pilot Product** giao độc lập để kiểm chứng danh bạ. **Release P1 — Commercial/Value Expansion** có gate, hợp đồng và nghiệm thu riêng sau pilot. P0 không phụ thuộc company research, canonical company, AI research/LLM, reminders, billing hay xuất sang danh bạ máy. OCR vẫn là thành phần lõi. Phạm vi này phục vụ discovery/báo giá; ký và chạy full implementation phải qua Core P0 Legal & Store Gate. Camera/OCR/queue/sync/security prototype bằng dữ liệu giả được làm trước.
+**Bản hoàn thiện = Release P0 core + Company Research tự động.** Research phải có resolver, server-side engine, structured facts, sources, cache, UI, auto trigger và manual refresh; không được hoãn sang P1. **Release P1 — Commercial/Value Expansion** chỉ còn các module như reminders, billing, phone export và mở rộng khác. OCR vẫn là thành phần lõi. Ký/chạy full implementation và xử lý dữ liệu thật phải qua Core P0 Legal & Store Gate cùng review vendor/research.
 
 | Nhóm | Ưu tiên | Phạm vi |
 |---|---|---|
@@ -312,7 +312,7 @@ Khi offline, ghi “Kết quả từ dữ liệu trên thiết bị”; chưa t�
 | Quản trị và hỗ trợ | [NORMATIVE P0] | Upload/OCR lỗi, analytics pilot tối thiểu; PII che mặc định, reason/ticket, quyền có thời hạn, audit |
 | Quyền chủ thể dữ liệu | [NORMATIVE P0] | Source + derived fields/relationships/index/cache theo lineage trong scope; review/hành động/audit/phản hồi, không bắt indexed locator hay query graph |
 | Voice note | [PILOT HYPOTHESIS] | Chỉ thử nếu không ảnh hưởng lịch/nghiệm thu P0; đọc ghi chú, sửa chữ và nhập chữ dự phòng |
-| Nghiên cứu doanh nghiệp | [P1 / NON-P0] | Resolver, canonical company, nguồn độc lập và facts đã kiểm tra; entitlement hồ sơ nâng cao, quota/cache theo mục 11 |
+| Tự động nghiên cứu doanh nghiệp | [NORMATIVE COMPLETION] | Sau khi lưu/xác nhận contact, tự enqueue resolver; server-side research, nguồn độc lập, structured facts, cache TTL, manual refresh, UI trạng thái và test end-to-end; lỗi research không rollback card/contact |
 | Danh bạ điện thoại | [P1 / NON-P0] | Xuất chọn lọc một chiều, tránh ghi lặp |
 | Chăm sóc quan hệ | [P1 / NON-P0] | Nhắc việc, lời nhắn bằng mẫu và luồng nhắn tin/integration được chọn; basic tel/mailto/browser/copy đã thuộc P0 |
 | Thu phí | [P1 / NON-P0] | Mua/khôi phục/hủy/gia hạn/hoàn tiền, quyền gói và quota server |
@@ -328,7 +328,7 @@ Màn hình mở đầu: **danh bạ namecard có tìm kiếm và lọc offline t
 
 Nếu experiment làm chậm release thì bỏ khỏi P0; chỉ xem xét làm chức năng chính khi có dữ liệu cho thấy tốt hơn nhập chữ. Không xây STT riêng, nhận diện người nói hoặc trợ lý cuộc họp trong MVP.
 
-Sau pilot chỉ mở những phần P1 có bằng chứng nhu cầu; danh bạ được dùng lại không tự chứng minh research hữu ích. Nhắc việc, template, phone export và billing đều là phạm vi tùy chọn của P1, không là điều kiện hoàn thành hợp đồng P0.
+Company Research tự động không còn chờ quyết định mở P1 và là điều kiện hoàn thành project. Sau pilot chỉ mở các phần P1 khác khi có bằng chứng nhu cầu; nhắc việc, template, phone export và billing vẫn là phạm vi tùy chọn.
 
 **[NORMATIVE P0] Duplicate suggestion / attach:** khi scan, hiển thị “Có vẻ đây là người đã tồn tại” với hai lựa chọn: “Liên kết với contact hiện có” hoặc “Tạo contact mới”. Chọn contact cũ thì card snapshot và encounter mới liên kết đúng contact; không merge field. Phone/email khác biệt thành proposal cho contact; company/title thành proposal cho contact_company. User duyệt riêng, không dựa duy nhất vào tổng đài hay trùng tên.
 
@@ -361,16 +361,16 @@ Accept kiểm target version, lifecycle/quyền và điều kiện sử dụng s
 
 ## 6. Nghiên cứu doanh nghiệp và cá nhân hóa là hai luồng
 
-**[P1 / NON-P0]** Toàn bộ module mở rộng dưới đây ngoài nghiệm thu P0; các cấm/boundary dữ liệu vẫn phải được giữ.
+**[NORMATIVE COMPLETION]** Phần Company Research dưới đây là bắt buộc trong bản hoàn thiện; phần cá nhân hóa vẫn ngoài phạm vi. Mọi cấm/boundary dữ liệu phải được giữ.
 
-### Nghiên cứu doanh nghiệp — P1
+### Nghiên cứu doanh nghiệp tự động — bắt buộc
 
-P0 chỉ lưu tenant company; chưa chạy resolver hoặc tạo canonical company. Khi P1 research được chọn, luồng là:
+Core P0 lưu tenant company; bản hoàn thiện phải tự chạy resolver/research sau khi contact đã lưu/xác nhận và có candidate tối thiểu. Luồng bắt buộc là:
 
 ```mermaid
 flowchart LR
     T[Tenant company] --> R[Company resolver]
-    R --> C[Canonical company hoặc chưa xác định]
+    R --> C[Resolved company hoặc unresolved]
     C --> S[Nguồn độc lập]
     S --> F[Verified company facts]
 ```
@@ -379,7 +379,7 @@ Card chỉ cung cấp candidate tối thiểu. Với công ty đã có facts/cac
 
 Resolver có thể đối chiếu domain, phần domain email tổ chức, MST tổ chức, tên và địa chỉ trong backend được cấp quyền. Không gửi email đầy đủ có tên, mobile, nguyên card/OCR, ghi chú, sự kiện hoặc ID người dùng ra search/model chỉ để tìm công ty. Hộ kinh doanh và ca chưa phân loại giữ riêng hoặc chờ kiểm tra.
 
-Không tự gán kết quả đầu tiên khi chỉ có tên phổ biến/Gmail. Thiếu domain hoặc khó match phải được giữ trong mẫu đánh giá coverage. Hiển thị ứng viên hoặc “chưa xác định”; chốt precision/coverage trước pilot P1.
+Không tự gán kết quả đầu tiên khi chỉ có tên phổ biến/Gmail. Thiếu domain hoặc khó match phải được giữ trong mẫu đánh giá coverage. Hiển thị ứng viên hoặc `unresolved`; chốt precision/coverage trước khi nghiệm thu bản hoàn thiện.
 
 Lưu riêng thông tin **từ card**, **từ web** và **người dùng xác nhận**. Dữ kiện bổ sung có URL, đoạn bằng chứng, ngày tra cứu và trạng thái kiểm chứng. Nguồn phải thực sự hỗ trợ đúng câu và đúng công ty; khi mâu thuẫn hiển thị khác biệt. Điểm model tự báo không phải xác suất đúng đã đo.
 
@@ -439,7 +439,7 @@ Với Zalo: ưu tiên QR/link trên card, có phương án sao chép số kèm h
 
 **[DISCOVERY DECISION]** Đề xuất Flutter cho Android và iOS nếu lập đội mới; chọn theo năng lực đội sau khi thử camera, OCR, offline và secure storage. Kiểm tra Contacts khi chọn module phone export P1, không làm dependency P0. Flutter hỗ trợ tích hợp native; build iOS cần macOS. [Flutter platform integration](https://docs.flutter.dev/platform-integration)
 
-**[NORMATIVE P0]** Bảng phân trách nhiệm, không bắt mỗi hàng một service; hàng P1 là **[P1 / NON-P0]**. Công nghệ cụ thể do discovery chốt.
+**[NORMATIVE COMPLETION]** Bảng phân trách nhiệm, không bắt mỗi hàng một service; core P0 và research đều bắt buộc trong bản hoàn thiện, các hàng mở rộng khác mới là **[P1 / NON-P0]**. Công nghệ cụ thể do discovery chốt hoặc `BCARD_PRODUCTION_COMPLETION_PROMPT.md` khóa.
 
 | Thành phần | Vai trò theo release |
 |---|---|
@@ -447,7 +447,7 @@ Với Zalo: ưu tiên QR/link trên card, có phương án sao chép số kèm h
 | Backend API | Xác thực, phân quyền, tiếp nhận bản ghi, cấp quyền upload/tải ảnh, tìm kiếm, đồng bộ phiên bản, xuất/xóa |
 | Database | PostgreSQL hoặc lựa chọn tương đương; card snapshot/OCR/provenance, contact và tenant company hiện hành; version theo đối tượng |
 | Kho ảnh | Object storage riêng tư; ảnh hai mặt đủ đọc chữ, thumbnail, mã ảnh liên kết với database |
-| Worker | P0: queue/upload/sync/retry theo tài khoản; P1 mới có research worker |
+| Worker | Queue/upload/sync/retry theo tài khoản và Company Research job bắt buộc; research failure độc lập với core save/sync |
 | AI/tìm kiếm bên ngoài — P1 | Không là dependency P0; nguồn/đầu ra có cấu trúc, API key ở server và chi phí giới hạn |
 | Quản trị — P0 | Role theo chức năng/least privilege, không mặc định cấp cho founder; masked theo scope, ticket/thời hạn; view/export/bulk export riêng; audit |
 | Data Subject Rights Capability — P0 | Quy trình/công cụ có kiểm soát theo request xác minh, privacy/compliance và audit; manual/semi-manual phù hợp pilot, không bắt buộc endpoint/index riêng |
@@ -485,19 +485,19 @@ Local DB/index tìm tên/công ty/số/email/tag/sự kiện/ghi chú thực có
 
 Data Subject Rights Capability giữ data_requests/audit, quyền/request/scope/review/hành động. **[DISCOVERY DECISION]** Manual/semi-manual hoặc indexed theo volume/pháp lý/chi phí; candidate giới hạn quyền/retention, không buộc subsystem, kho identity hay product graph.
 
-### [P1 / NON-P0] Schema bổ sung — chỉ tạo khi module được chọn
+### [NORMATIVE COMPLETION] Schema Company Research bắt buộc và schema P1 tùy chọn
 
 | Bảng/nhóm | Vai trò |
 |---|---|
-| company_resolution | Lần yêu cầu/ứng viên/kết quả đối chiếu tenant company; liên kết riêng theo tenant |
-| canonical_companies | Thực thể công ty được resolver nhận diện, có trạng thái chưa chắc; chỉ P1 |
-| company_facts | Facts xác minh nguồn độc lập, qua boundary và điều kiện dùng chung; không copy card |
-| research | Tác vụ/kết quả usable/phiên bản; tách chi phí nội bộ khỏi entitlement |
-| sources | URL/bằng chứng/ngày tra cứu/phạm vi sử dụng của nguồn |
-| research_entitlements / refresh_usage | Quyền hồ sơ đã cấp theo tài khoản và quyền làm mới; chống tính lặp |
+| company_resolution — bắt buộc | Lần yêu cầu/ứng viên/kết quả đối chiếu tenant company; `resolved` hoặc `unresolved`, liên kết riêng theo tenant |
+| resolved_companies / equivalent — bắt buộc | Thực thể doanh nghiệp được resolver nhận diện; không tạo shared people graph hoặc liên kết PII chéo tenant |
+| company_facts — bắt buộc | Facts xác minh nguồn độc lập, qua boundary; không copy dữ liệu private trên card |
+| research — bắt buộc | Tác vụ/kết quả usable/phiên bản, trạng thái, cache key và lỗi; tách chi phí nội bộ khỏi core save |
+| sources — bắt buộc | URL/bằng chứng/ngày tra cứu/phạm vi sử dụng và mapping tới facts quan trọng |
+| research_entitlements / refresh_usage — khi áp quota | Quyền hồ sơ đã cấp và quyền làm mới; retry/failure không tính lặp, billing không là dependency của auto research trong bản hoàn thiện |
 | plans / billing | Khi chọn subscription: gói, giao dịch và quyền sử dụng; không ảnh hưởng quyền đọc/export P0 |
 
-P0 chạy và nghiệm thu được khi chưa có toàn bộ bảng/module P1. Không thêm shared company ID vào contacts hoặc tenant_companies để dự phòng P1.
+Bản hoàn thiện không được nghiệm thu nếu thiếu resolver/research/facts/sources/cache schema hoặc equivalent. Không bắt buộc shared company graph; dữ liệu private và tenant link vẫn cách ly theo tài khoản.
 
 ### [NORMATIVE P0] Object sync và restore
 
@@ -615,7 +615,7 @@ Luồng lõi phải được đánh giá bằng văn bản: **người dùng qu�
 | Ý kiến pháp lý áp dụng | Vai trò đơn vị vận hành/nhà cung cấp, căn cứ xử lý người trên card theo hoạt động, điều kiện áp dụng và điểm chưa đủ căn cứ |
 | Disclosure và cơ chế bổ sung | Người dùng app được biết gì; có/không cần consent, notification hoặc cơ chế khác cho người trên card, ai thực hiện, lúc nào, bằng chứng gì |
 | Quyền và vòng đời dữ liệu | Data Subject Rights Capability, xác minh/scope/tra cứu/review/hành động/audit/phản hồi; retention/xóa/server backup/local/pending và lựa chọn còn mở |
-| Store review strategy | Đánh giá core flow với App Store/Google Play; disclosure, App Privacy/Data Safety, review notes dự kiến và cách xử lý yêu cầu sửa; không chỉ xét P1 research |
+| Store review strategy | Đánh giá core flow và Company Research bắt buộc với App Store/Google Play; disclosure, App Privacy/Data Safety, review notes dự kiến và cách xử lý yêu cầu sửa |
 | Biên bản quyết định theo giai đoạn | Phiên bản/ngày của luồng, kết luận đủ điều kiện bước nào, blocker/người phụ trách/bằng chứng, yêu cầu đưa vào hợp đồng và điều kiện trước pilot/launch |
 
 Đã “gửi luật sư xem” hoặc có checklist chưa kết luận chưa làm gate đạt. Văn bản phải đủ xác định có tiếp tục full P0 theo luồng/phạm vi nào, với điều kiện nào. Nếu chưa rõ: **Cần ý kiến luật sư/store review strategy trước full implementation hoặc pilot dữ liệu thật.**
@@ -780,9 +780,9 @@ Lưu/xử lý đúng mục đích; không mặc định dùng ảnh/card/ghi ch�
 
 ## 11. Mô hình gói sử dụng và chi phí
 
-**[P1 / NON-P0] [PILOT HYPOTHESIS]** Gói/giá/research/billing và chi phí là giả định mở rộng. **[NORMATIVE P0]** Quota acceptance và quyền đọc/export P0 bên dưới vẫn áp dụng.
+**[NORMATIVE COMPLETION]** Company Research là bắt buộc; gói/giá/billing vẫn là **[P1 / NON-P0] [PILOT HYPOTHESIS]**. Quota acceptance và quyền đọc/export P0 bên dưới vẫn áp dụng.
 
-P0 pilot chưa có subscription/billing hay research entitlement. Hạn mức tiếp nhận card vẫn cần ở cấu hình vận hành để bảo vệ dữ liệu và chi phí. Free/Pro dưới đây là **giả thuyết P1 nếu mở thương mại**, không là phạm vi nghiệm thu P0. **Mọi gói đều chịu trách nhiệm lưu/sync và đối soát card/ảnh đã tiếp nhận theo mục 4**; hết quyền research không chặn sync. Quyền quản lý, đọc và export dữ liệu P0 không phụ thuộc mua P1.
+Bản hoàn thiện chưa cần subscription/billing nhưng phải có Company Research hoạt động. Hạn mức nội bộ/rate limit có thể bảo vệ chi phí và chống abuse, không được biến thành mock hoặc loại bỏ luồng auto research khỏi Definition of Done. Free/Pro dưới đây vẫn là **giả thuyết P1 nếu mở thương mại**. **Mọi gói đều chịu trách nhiệm lưu/sync và đối soát card/ảnh đã tiếp nhận theo mục 4**; research failure không chặn sync, đọc hoặc export.
 
 | Chức năng khi mở thương mại P1 | Miễn phí — giả thuyết | Pro — giả thuyết |
 |---|---|---|
@@ -790,7 +790,7 @@ P0 pilot chưa có subscription/billing hay research entitlement. Hạn mức ti
 | Tìm kiếm, tag, sự kiện, ghi chú | Có | Có |
 | Lưu server và khôi phục khi đổi máy | Có | Có |
 | Commercial device entitlement — P1 hypothesis | Có thể giới hạn số thiết bị được đăng nhập/sử dụng, ví dụ 1; đổi máy vẫn khôi phục đúng | Có thể cho nhiều thiết bị |
-| Hồ sơ doanh nghiệp nâng cao — nếu chọn research | Ví dụ 3–5 hồ sơ mới được cấp quyền/tháng; cần thử | Hạn mức hồ sơ mới/làm mới theo gói; cần thử |
+| Hồ sơ doanh nghiệp nâng cao — research bắt buộc | Auto research có rate limit/abuse protection; mức thương mại cần thử | Cache theo resolved company/domain; manual refresh và hạn mức làm mới cấu hình riêng |
 | Nhắc việc, lời nhắn nháp — P1 nếu được chọn | Phạm vi được chốt sau pilot | Phạm vi được chốt sau pilot |
 | Đọc và xuất dữ liệu đã lưu | Có | Có |
 
@@ -802,7 +802,7 @@ Các mức trên chưa phải quyết định giá bán. Chưa cam kết lưu tr
 
 Hết allowance thì báo trước capture/local acceptance mới; không hứa “đã lưu” rồi bỏ sync. **Device/concurrency policy là [DISCOVERY DECISION]. Baseline không mặc định single-active-device hay optimistic concurrency.** Quota/offline allowance phải tương thích phương án A hoặc B được chọn; không dùng pricing hay allowance để quyết định kiến trúc. Bất biến: không mất LOCAL_ACCEPTED/orphan pending, không silent overwrite/cross-account leak, retry/version đúng và giới hạn offline được mô tả đúng.
 
-### Research entitlement và cache — giả thuyết P1
+### [NORMATIVE COMPLETION] Research cache; entitlement thương mại là giả thuyết P1
 
 **Quota đo quyền truy cập giá trị, không đo số lần gọi AI.** Giao diện dùng “hồ sơ doanh nghiệp nâng cao/tháng”, không dùng “lượt AI”. Khách hàng cần biết quyền nào sẽ được cấp và hạn mức nào bị trừ.
 
@@ -817,7 +817,7 @@ Hết allowance thì báo trước capture/local acceptance mới; không hứa 
 | Vendor vẫn tính phí do lỗi/retry | Ghi internal cost, không tự chuyển thành quota user |
 | Hết quota research/hủy gói | Không chặn sync, đọc hoặc export dữ liệu tài khoản đã có; cấp mới/làm mới theo quyền còn hiệu lực |
 
-Server ghi account–hồ sơ–quyền đã cấp, phiên bản, trạng thái yêu cầu và giao dịch hạn mức để chống tính lặp. Một xử lý thất bại không để lại khoản trừ quota vĩnh viễn. “Usable”, định nghĩa một hồ sơ, hạn mức kỳ/refresh và retention phải chốt trước thử P1. Đây chưa phải pricing cuối cùng; tài liệu discovery quyết định cơ chế kỹ thuật cụ thể.
+Server ghi account–hồ sơ–quyền đã cấp, phiên bản, trạng thái yêu cầu và giao dịch hạn mức để chống tính lặp. Một xử lý thất bại không để lại khoản trừ quota vĩnh viễn. “Usable”, định nghĩa một hồ sơ, TTL/refresh và retention phải chốt trước nghiệm thu bản hoàn thiện. Pricing/quota thương mại chưa được chốt và không làm research trở thành tùy chọn.
 
 Giữ khả năng đọc/xuất dữ liệu đã có khi hết gói; thời hạn lưu và hành vi khi tài khoản vượt hạn mức phải được công bố. Mỗi card gồm tối đa hai mặt được tính là một card.
 
@@ -878,21 +878,21 @@ Kịch bản hoạt động dành **10–14 tuần chuẩn bị P0 cho pilot**, 
 
 Nếu cần giảm scope: voice experiment → UI polish → độ tinh vi tag/filter ngoài baseline → optional enhancements. Không cắt lineage, contact-method cardinality, sync integrity/dependency, offline baseline, tenant isolation, delete/restrict correctness hoặc legal/store gate. Full merge và QR vẫn ngoài P0.
 
-Phạm vi P0/P1 theo mục 5: voice chỉ experiment, export/quyền dữ liệu vẫn P0; không thêm module P1 hoặc advanced multi-device editing vào nghiệm thu.
+Phạm vi bản hoàn thiện theo mục 5: core P0 cộng Company Research tự động; voice chỉ experiment, export/quyền dữ liệu vẫn P0; không thêm các module P1 khác hoặc advanced multi-device editing vào nghiệm thu.
 
 ### Gate sau pilot P0
 
-Chỉ mở P1 khi giá trị lưu/tìm/dùng lại được kiểm chứng và lỗi quan trọng P0 đã xử lý. Mỗi phần P1 cần bằng chứng nhu cầu hoặc bài thử giá trị phù hợp. Danh bạ được dùng lại không tự chứng minh nhu cầu research.
+Company Research đã được chốt bắt buộc và không chờ gate mở P1. Chỉ mở các module P1 khác khi giá trị lưu/tìm/dùng lại được kiểm chứng và lỗi quan trọng P0 đã xử lý.
 
-Nếu research chưa có giá trị rõ, tiếp tục sửa P0, chọn phần P1 khác có căn cứ hoặc chưa mở P1. Không tự đặt hàng toàn bộ danh sách mở rộng.
+Nếu research chưa đạt chất lượng/coverage, tiếp tục sửa resolver, source validation, cache hoặc UX `unresolved`; không được hoãn toàn bộ module khỏi bản hoàn thiện. Các phần P1 khác vẫn chọn theo bằng chứng nhu cầu.
 
 ### [P1 / NON-P0] Release P1 — Commercial/Value Expansion
 
 | Giai đoạn | Thời lượng giả định sau gate | Đầu ra |
 |---|---|---|
-| Chốt giá trị/phạm vi/báo giá | 1–2 tuần | Chọn research, reminder/template, phone export, billing theo nhu cầu; chốt luồng, quota và nghiệm thu từng phần |
-| Xây phần P1 được chọn | 4–8 tuần | Nếu có research: resolver/canonical company/nguồn độc lập/facts/entitlement; phần khác đúng hợp đồng P1 |
-| Kiểm chứng và chuẩn bị phát hành | 2–3 tuần | Chất lượng/coverage/nguồn; quota/cache/billing nếu có; thử giá trị/trả tiền; bảo mật, vận hành và hồ sơ phát hành |
+| Chốt giá trị/phạm vi/báo giá | 1–2 tuần | Chọn reminder/template, phone export và billing theo nhu cầu; Company Research đã thuộc bản hoàn thiện |
+| Xây phần P1 được chọn | 4–8 tuần | Chỉ các module mở rộng khác đúng hợp đồng P1; không tính lại research bắt buộc như tùy chọn |
+| Kiểm chứng và chuẩn bị phát hành | 2–3 tuần | Quota/billing nếu có, thử giá trị/trả tiền, bảo mật, vận hành và hồ sơ phát hành cho phần P1 |
 
 **P1 7–13 tuần** là giả định cho phạm vi được chọn, không cam kết cho toàn bộ danh sách. Bỏ/đổi phần sau pilot phải cập nhật báo giá. Không cộng lịch P1 thành thời hạn giao P0.
 
@@ -924,19 +924,19 @@ Ngân sách mỗi release = phát triển theo báo giá + pháp lý/bảo mật
 
 Bộ mục 10 là tiêu chí build/test, chưa phải kết quả app đã đạt. Legal effect của source deletion lên derived data phải có kết luận để hiện thực/nghiệm thu; đủ lineage không tự chứng minh compliance. Không đòi provenance/proposal table riêng, indexed locator, full merge hoặc cả hai device architectures. Bàn giao mã nguồn/cấu hình/tài khoản hạ tầng-phân phối thuộc scope; báo OS/cohort/object/test case, lỗi và chạy lại.
 
-**P1:** chỉ nghiệm thu phần đặt hàng. Research có resolution/coverage/nguồn/facts/entitlement-cache; reminder/template, phone export, billing có bộ nghiệm thu riêng nếu được chọn. Không dùng yêu cầu P1 để giữ nghiệm thu/thanh toán hợp đồng P0. P1 bảo toàn quyền đọc/export dữ liệu đã lưu theo chính sách.
+**Bản hoàn thiện:** Company Research phải nghiệm thu resolution/coverage/nguồn/facts/cache/auto trigger/manual refresh. **P1:** reminder/template, phone export và billing chỉ nghiệm thu nếu được chọn. Không dùng các yêu cầu P1 khác để giữ nghiệm thu bản hoàn thiện. P1 bảo toàn quyền đọc/export dữ liệu đã lưu theo chính sách.
 
-Nghiệm thu kỹ thuật P0 và quyết định kinh doanh mở P1 là hai việc khác nhau. Pilot không chứng minh nhu cầu mở rộng không biến thành nghĩa vụ đội phát triển xây thêm P1 trong hợp đồng P0.
+Nghiệm thu kỹ thuật bản hoàn thiện gồm core P0 và Company Research; quyết định kinh doanh mở các module P1 khác là việc riêng. Pilot không chứng minh nhu cầu mở rộng không biến thành nghĩa vụ xây thêm P1 ngoài phạm vi đã chốt.
 
 ---
 
 ## 13. Pilot và chỉ tiêu có đối chứng
 
-**[PILOT HYPOTHESIS]** Mẫu/baseline/ngưỡng sản phẩm; định nghĩa kiểm chứng và hard gate được đánh dấu **[NORMATIVE P0]**. Mục 13.5 là **[P1 / NON-P0]**.
+**[PILOT HYPOTHESIS]** Mẫu/baseline/ngưỡng sản phẩm; định nghĩa kiểm chứng và hard gate được đánh dấu **[NORMATIVE P0]** hoặc **[NORMATIVE COMPLETION]**. Mục 13.5 là nghiệm thu bắt buộc của Company Research.
 
 Prototype/kiểm thử kỹ thuật dữ liệu giả được làm trước. **Pilot namecard thật chỉ mở sau Core P0 Legal & Store Gate có kết luận vận hành bằng văn bản đủ triển khai, đóng blocker và hoàn tất điều kiện trước pilot.** Đây là gate trước dữ liệu thật, khác gate giá trị sau pilot để mở P1.
 
-Pilot P0 kiểm chứng lưu/tìm/sử dụng thông tin liên hệ so baseline, gồm offline search trong phạm vi local, tính toàn vẹn đồng bộ/lifecycle và dùng lại qua sự kiện. Research/canonical company/entitlement/billing và phép đo thương mại chỉ đánh giá ở P1 nếu chọn; không là điều kiện hoàn thành P0.
+Pilot bản hoàn thiện kiểm chứng lưu/tìm/sử dụng thông tin liên hệ, offline sync/lifecycle và Company Research tự động. Research resolution, coverage, nguồn, cache và auto trigger là điều kiện nghiệm thu; billing và phép đo thương mại vẫn chỉ đánh giá ở P1 nếu chọn.
 
 Các ngưỡng sản phẩm là **decision heuristics go/iterate/no-go cho pilot nhỏ**, không phải ngưỡng thống kê chứng minh sản phẩm, benchmark thị trường hoặc bảo đảm ngoài thực tế. Chốt mẫu, cách đo, ngưỡng và cách ra quyết định trước thử; không đổi threshold sau khi xem kết quả để làm thành đạt.
 
@@ -1016,7 +1016,7 @@ Kiểm thử quyền đọc/sửa/xóa/tìm/export/ảnh/queue/cache sau revoke,
 |---|---|
 | Activation | Người lưu 5 card dùng được, server nhận đủ và tìm đúng ít nhất 1 liên hệ trong 7 ngày / người mới đủ điều kiện có cơ hội nhận ít nhất 5 card |
 | Event-to-event reuse | Người đã dùng ở sự kiện trước, tự dùng lại ở sự kiện kế tiếp / mọi người đã dùng có sự kiện kế tiếp với nhu cầu lưu/tìm |
-| Chi phí phục vụ P0 | Theo card/tài khoản/cohort pilot: ảnh, backup, truy vấn, restore, retry và hỗ trợ; chưa có research/billing |
+| Chi phí phục vụ bản hoàn thiện | Theo card/tài khoản/cohort pilot: ảnh, backup, truy vấn, restore, retry, hỗ trợ và Company Research; chưa có billing |
 
 Xác định cơ hội dùng lại bằng lịch/tường trình sự kiện, không dựa vào mở app. Chưa có cơ hội không tự động là churn; không phản hồi ghi chưa quan sát.
 
@@ -1034,19 +1034,19 @@ Sync integrity/success từng object, lifecycle, backlog và incidents phải đ
 
 Correction, OCR, dedupe recall, activation và độ trễ chủ yếu để chẩn đoán; lỗi mất dữ liệu/ghi đè hoặc phá liên kết vẫn là hard gate; không yêu cầu full merge/undo P0. Follow-up là chẩn đoán về lời hẹn ghi chú trong P0, không yêu cầu xây reminder. Khi bán nhắc việc P1 mới nghiệm thu giá trị tính năng đó.
 
-### 13.5. [P1 / NON-P0] Kiểm chứng khi module được mở
+### 13.5. [NORMATIVE COMPLETION] Kiểm chứng Company Research bắt buộc
 
-**Research:** trước xây cần bằng chứng nhu cầu; sau xây cần chất lượng/nguồn và entitlement đúng. Không xây shared company để lấy số đo pilot P0.
+**Research:** trước release phải chứng minh auto trigger, resolution an toàn, chất lượng/nguồn, cache và authorization đúng. Không cần shared company graph để đáp ứng requirement.
 
-| Chỉ số research P1 | Định nghĩa |
+| Chỉ số research completion | Định nghĩa |
 |---|---|
 | Company precision | Công ty gán đúng / toàn bộ ca tự gán; báo đúng/sai/chưa kiểm chứng, không âm thầm loại ca chưa có đáp án |
 | Company coverage | Số tự gán / toàn bộ yêu cầu trong phạm vi và còn entitlement; không loại thiếu domain, tên phổ biến hoặc ca khó |
 | Nguồn | Dữ kiện quan trọng có nguồn thực sự hỗ trợ / toàn bộ dữ kiện quan trọng bổ sung; kiểm tra đúng công ty và thời điểm |
 | Entitlement/cache | Test user mới + cache có sẵn, mở lại đã cấp, đổi kỳ, refresh, hết quota, retry đồng thời/nhiều thiết bị, lỗi không usable; không tính lặp hoặc giữ khoản trừ do thất bại |
-| Chi phí P1 | Tách entitlement cấp cho user khỏi lần xử lý/model/search, cache, refresh và vendor failures |
+| Chi phí research | Tách entitlement/rate limit khỏi lần xử lý/model/search, cache, refresh và vendor failures |
 
-Chốt coverage sau khảo sát nguồn và trước tập đánh giá P1. Mục tiêu precision ≥98% chỉ có ý nghĩa cùng coverage/kiểm chứng; chưa đủ thì chưa tuyên bố đạt. Chưa đạt thì sửa/tắt tự gán/cho chọn hoặc hoãn research, không làm thay đổi nghiệm thu P0.
+Chốt coverage sau khảo sát nguồn và trước tập đánh giá completion. Mục tiêu precision ≥98% chỉ có ý nghĩa cùng coverage/kiểm chứng; chưa đủ thì chưa tuyên bố đạt. Chưa đạt phải sửa resolver, trả `unresolved` an toàn hoặc yêu cầu người dùng chọn; không được hoãn research rồi kết luận project hoàn thiện.
 
 **Thương mại nếu được chọn:**
 
@@ -1086,15 +1086,15 @@ Pilot chọn vòng phát triển tiếp, chưa chứng minh product-market fit. 
 | Backup/reinstall tạo phiên cũ hoặc hồi sinh bản xóa | Test policy đã chọn, auth/version/tombstone/idempotency; không bảo đảm recovery khi chưa có bản sao hợp lệ |
 | Dữ liệu riêng đi ngoài mục đích | Boundary theo trường; không copy card sang facts chung, không private note/event vào research model |
 | Nhà cung cấp nhận ngoài luồng | Rà AI/OCR/log/backup/CDN/support/OS backup và bên nhận; cập nhật khi thay đổi |
-| P1 quota tính lặp hoặc lẫn API call | Entitlement theo account/hồ sơ, mở lại miễn, retry/failure không trừ; ghi cost vendor riêng |
+| Research quota tính lặp hoặc lẫn API call | Entitlement/rate limit theo account/hồ sơ, cache hit mở lại không gọi model, retry/failure không trừ; ghi cost vendor riêng |
 | Báo nhận trước commit bền hoặc quota từ chối sau acceptance | LOCAL_ACCEPTED là mốc duy nhất; allowance/queue phục hồi, quota đổi không bỏ card đã nhận; test crash/reconnect |
 | Device policy phức tạp hoặc stale write làm mất dữ liệu | So A/B qua code/edge cases/UX/offline/security/test; chỉ build phương án chọn, không mất accepted/ghi đè/leak, không default A đơn giản hơn |
-| Cache P1 sai/cũ | Đúng canonical company, nguồn độc lập, quyền dùng lại, freshness và refresh rõ |
+| Cache research sai/cũ | Đúng resolved company/domain, nguồn độc lập, quyền dùng lại, freshness, TTL và refresh rõ |
 | Full build/pilot thật bắt đầu trước core gate | Kết luận vận hành bằng văn bản trước ký/chạy full P0 hoặc pilot thật; discovery/báo giá/prototype giả được làm trước |
 | Estimate ép theo mốc cũ hoặc bỏ lineage | 6–8 tuần chỉ historical/pilot assumption; thay lịch theo vendor/workstream, cắt voice/UI/extras trước, không cắt core semantics/lineage/integrity/offline/isolation/legal gate |
 | Chốt sai điều kiện pháp lý/nhân sự | Luật sư rà vai trò/căn cứ, dịch vụ xử lý dữ liệu và luồng trước chốt phần liên quan |
 | KPI coi legitimate delete là sync failure hoặc che loss | Required cohort/completion, lifecycle supersession, pending/incidents và accounted-for riêng; protocol chốt trước, loss không bị loại/thành success; heuristic/hard gate giữ đúng |
-| Thêm module trước có nhu cầu hoặc QR mơ hồ | QR hoãn khỏi P0 theo Option B; voice experiment không chặn release; research/reminder/billing P1 chọn theo gate |
+| Mở rộng scope hoặc QR mơ hồ | QR hoãn khỏi P0 theo Option B; voice experiment không chặn release; Company Research là bắt buộc, còn reminder/billing và module P1 khác chọn theo gate |
 
 ## Những quyết định đã khóa trước technical discovery
 
@@ -1109,7 +1109,7 @@ Pilot chọn vòng phát triển tiếp, chưa chứng minh product-market fit. 
 7. Offline search và basic tel/mailto/browser/copy thuộc P0. Personal URL và company URL tách nguồn. Derived/index/cache/display/preferred pointers/proposal/queue/backup phải theo lifecycle/data map; source action xét mọi target value liên quan.
 8. Core Legal & Store Gate trước full implementation/pilot thật; prototype giả GO. Data Subject Rights Capability bắt buộc, không bắt indexed locator; legal effect của source action lên derived data cần kết luận, không tự cascade.
 9. Auth/tenant/mobile/server/admin security giữ bắt buộc; founder không admin mặc định, role/masking/ticket/time-bound/view-export/audit. Local DB encryption và pending backup chưa khóa.
-10. P0/P1 riêng; AI/research/canonical company/reminder/template/phone Contacts/billing ngoài P0, không personalized LLM hoặc Zalo/WhatsApp login. QR ngoài P0, voice experiment không chặn release. Metrics tách required/supersession/failure/accounted-for; data loss luôn failure. Timeline 6–8 tuần chỉ historical assumption, không cắt core để ép mốc.
+10. Bản hoàn thiện gồm P0 core và Company Research tự động có nguồn; research không personalized contact và không tạo shared people graph. Reminder/template/phone Contacts/billing vẫn ngoài phạm vi. Không Zalo/WhatsApp login; QR ngoài P0, voice experiment không chặn release. Metrics tách required/supersession/failure/accounted-for; data loss luôn failure.
 
 ## Những quyết định chưa khóa
 
@@ -1123,7 +1123,7 @@ Pilot chọn vòng phát triển tiếp, chưa chứng minh product-market fit. 
 - **Pending backup/mobile storage:** không backup hoặc backup có kiểm soát; local DB/FTS encryption theo threat model, thư viện/license/performance, key/restore/temp/OS behavior và review pháp lý/security.
 - **Presentation/cleanup:** preferred phone/email, primary relationship và compact/full export; pointer clear/rebuild, rule personal/company URL, dependency/current-version check để clean draft; không full merge.
 - **Vendor/vận hành/quota:** vùng/vendor, key management/retention/redaction, mục đích/minimal metadata delete-before-sync, allowance/bằng chứng acceptance, commercial device entitlement, dung lượng/chi phí/support.
-- **Pilot/P1:** chốt trước protocol sync-required/superseded/failures, mẫu/cách đo/heuristics; nhu cầu module P1, coverage/entitlement/pricing/paid retention như phạm vi cũ. Không dùng accounted-for làm success.
+- **Pilot/research/P1:** chốt trước protocol sync-required/superseded/failures và mẫu đo; Company Research bắt buộc chốt coverage/source/cache/auto-trigger, còn entitlement thương mại/pricing/paid retention và module P1 khác theo gate. Không dùng accounted-for làm success.
 - **Timeline/budget:** estimate theo workstream/đội hình/dependency, pháp lý/audit/thời gian đóng gate. 6–8 tuần chỉ historical/pilot planning assumption; thay theo báo giá, không cắt core data semantics.
 
 ## Trạng thái GO/NO-GO
@@ -1138,15 +1138,15 @@ Full P0 production implementation và pilot dữ liệu namecard thật. **Chưa
 
 ### NOT YET
 
-P1 company research/billing; claim/network; personalized AI; external statistics; advanced multi-device conflicts. Chỉ xem xét theo gate/phạm vi đã nêu; không đưa vào hợp đồng P0.
+Billing/subscription; claim/network; personalized AI; external statistics; reminder/template/phone export và advanced multi-device conflicts vẫn **NOT YET**. Company Research tự động đã chuyển thành **NORMATIVE COMPLETION** và không nằm trong danh sách này.
 
 Technical prototype dữ liệu giả, full production implementation, pilot dữ liệu thật và commercial launch là bốn bước khác nhau. Hoàn thành gate/build/pilot không phải cam kết chắc chắn được store duyệt; launch còn điều kiện riêng theo kết luận vận hành và kênh phân phối.
 
 ## Freeze rule
 
-Sau Bản 5.5:
+Sau Bản 5.6:
 
 - Không thay đổi P0 architecture chỉ vì xuất hiện thêm edge case trên giấy.
 - Chỉ thay đổi P0 khi technical discovery chứng minh baseline không khả thi/không an toàn; legal/store review tạo blocker mới; prototype/pilot tạo bằng chứng product/UX mới; hoặc vendor estimate cho thấy cần đổi scope.
 - Mỗi thay đổi phải ghi: reason, evidence, affected requirement, cost/timeline impact và decision owner.
-- Không tạo Bản 5.6 chỉ để tinh chỉnh câu chữ.
+- Không tạo Bản 5.7 chỉ để tinh chỉnh câu chữ; thay đổi phạm vi Company Research phải được ghi nhận như thay đổi requirement.

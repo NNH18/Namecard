@@ -5,7 +5,9 @@ const path = require("path");
 const root = path.join(__dirname, "www");
 const rootBoundary = `${root}${path.sep}`;
 const port = Number(process.env.PORT || 4173);
-const contentSecurityPolicy = "default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self' blob:; form-action 'self'; frame-ancestors 'none'";
+let supabaseOrigin = "";
+try { const candidate = new URL(process.env.SUPABASE_URL || "https://placeholder.supabase.co"); if (candidate.protocol === "https:") supabaseOrigin = candidate.origin; } catch {}
+const contentSecurityPolicy = `default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self' blob: ${supabaseOrigin}; form-action 'self'; frame-ancestors 'none'`;
 const securityHeaders = {
   "Content-Security-Policy": contentSecurityPolicy,
   "X-Content-Type-Options": "nosniff",

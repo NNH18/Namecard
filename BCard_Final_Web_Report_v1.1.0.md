@@ -110,4 +110,5 @@ Sau đó mở `http://localhost:4173`.
 - Chưa có backend production, tài khoản thật, tenant isolation, object storage riêng tư, ACK/idempotency/conflict resolution hoặc hàng đợi sync server.
 - Trình phân tích field OCR dùng heuristic; người dùng vẫn phải review. Đã kiểm tra đúng card AEON và All Made Viet thực tế nhưng chưa có bộ dữ liệu benchmark namecard Việt/Anh đủ lớn để công bố độ chính xác.
 - DSR, audit log, retention, consent, privacy policy và Legal & Store Gate chưa phải quy trình production đã được xác nhận.
+- Company Research tự động chưa được triển khai trong prototype 1.1.0. Theo scope amendment ngày 11/09/2026, đây là requirement bắt buộc của bản hoàn thiện: auto trigger, resolver, server-side research, facts/sources, cache, UI và manual refresh đều phải được nghiệm thu.
 - Vì các giới hạn trên, bản này GO cho demo trình duyệt bằng dữ liệu giả hoặc dữ liệu thử không nhạy cảm; vẫn NO-GO cho pilot namecard thật và production.

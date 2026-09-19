@@ -1,0 +1,7 @@
+project_id = "bcard"
+
+[functions.company-resolver]
+verify_jwt = true
+
+[functions.company-research]
+verify_jwt = true

@@ -24,6 +24,10 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>BCard uses the camera only when you choose to scan a namecard.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>BCard lets you choose namecard images for on-device OCR.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

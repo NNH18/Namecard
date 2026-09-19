@@ -1,6 +1,10 @@
 # BCard Web Mobile 1.1.0 — Danh bạ namecard 3D
 
-Ứng dụng web mobile/PWA dựa trên `TU_VAN_APP_DANH_BA_THU_2.md`, dùng giao diện mobile-first 3D/clay, jQuery và OCR Tesseract Việt/Anh chạy cục bộ. Bản hiện tại lưu dữ liệu trên origin trình duyệt, phù hợp demo trước Core P0 Legal & Store Gate.
+Ứng dụng web mobile/PWA dựa trên `TU_VAN_APP_DANH_BA_THU_2.md`, dùng giao diện mobile-first 3D/clay, jQuery và OCR Tesseract Việt/Anh chạy cục bộ. Dữ liệu được tiếp nhận bền trong IndexedDB, đồng bộ qua Supabase Auth/PostgreSQL/RLS/private Storage và nghiên cứu doanh nghiệp qua Edge Functions khi cấu hình production.
+
+## Phạm vi bản hoàn thiện
+
+Bản triển khai gồm core danh bạ/OCR/offline và **Company Research tự động**: sau khi contact đủ điều kiện được lưu, hệ thống enqueue resolver và server-side research; kết quả có nguồn, cache/TTL, trạng thái UI và manual refresh. Hướng dẫn môi trường, migrations, RLS và triển khai nằm trong `docs/PRODUCTION.md`.
 
 ## Chạy ứng dụng
 
@@ -47,7 +51,7 @@ Theo yêu cầu bàn giao hiện tại, không tạo APK/AAB. Web assets nằm �
 - Search, copy và các chỉ mục hiển thị chỉ dùng method/relationship đang `ACTIVE`, không làm lộ lại giá trị `REVOKED`.
 - Duyệt proposal có kiểm tra target hiện hành; proposal cũ bị supersede thay vì ghi đè dữ liệu mới hơn.
 - Thêm ghi chú, gọi/email/mở website/sao chép; thao tác xóa card dọn ảnh/raw OCR cục bộ nhưng giữ trạng thái acceptance tối thiểu.
-- Xem acceptance, sync object/version, lifecycle và incident độc lập; mô phỏng offline, backlog và sync.
-- Xuất toàn bộ dữ liệu tài khoản dạng JSON, tạo yêu cầu quyền dữ liệu demo và đặt lại dữ liệu mẫu.
+- Xem acceptance, sync object/version, lifecycle và incident độc lập; offline queue, retry/backoff, conflict và server ACK không bị nhập làm một trạng thái.
+- Xuất dữ liệu đúng account dạng JSON, tạo yêu cầu quyền dữ liệu bền và xóa cache đã đồng bộ mà không xóa pending queue.
 
-Đây là prototype front-end, chưa có camera/OCR native, backend đa tenant, object storage, auth, mã hóa, audit bất biến hoặc quy trình Data Subject Rights thật. Các phần đó cần technical discovery và gate pháp lý/store trước khi triển khai production hoặc dùng namecard thật.
+Khi thiếu `SUPABASE_URL`/`SUPABASE_ANON_KEY`, ứng dụng chạy ở chế độ phát triển cục bộ và không giả báo sync/research thành công. Trước pilot dữ liệu thật vẫn phải hoàn tất legal/privacy, threat model, backup/restore, kiểm thử thiết bị và incident ownership; xem [docs/PRODUCTION.md](docs/PRODUCTION.md).

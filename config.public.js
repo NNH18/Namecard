@@ -1,0 +1,1 @@
+window.BCARD_PUBLIC_CONFIG = window.BCARD_PUBLIC_CONFIG || {};

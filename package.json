@@ -6,12 +6,13 @@
   "scripts": {
     "build": "node build.js",
     "start": "npm run build && node server.js",
-    "check": "node --check logic.js && node --check ocr.js && node --check app.js && node --check sw.js && node --check server.js && node --check build.js && node --check test/ocr-smoke.js && node --check test/ocr-live-card.js && node --check test/ocr-form-live-card.js && node --check test/visual-smoke.js && node -e \"JSON.parse(require('fs').readFileSync('manifest.json','utf8'))\"",
-    "test": "node --test test/logic.test.js test/ocr.test.js test/app.test.js",
+    "check": "node --check logic.js && node --check ocr.js && node --check app.js && node --check sw.js && node --check server.js && node --check build.js && node --check lib/config.js && node --check lib/local-db.js && node --check lib/supabase.js && node --check lib/auth.js && node --check lib/repository.js && node --check lib/storage.js && node --check lib/sync.js && node --check lib/company-resolver.js && node --check lib/company-research.js && node --check lib/production.js && node --check test/ocr-smoke.js && node --check test/ocr-live-card.js && node --check test/ocr-form-live-card.js && node --check test/visual-smoke.js && node -e \"JSON.parse(require('fs').readFileSync('manifest.json','utf8'))\"",
+    "test": "node --test test/logic.test.js test/ocr.test.js test/app.test.js test/config.test.js test/local-db.test.js test/auth.test.js test/repository.test.js test/sync.test.js test/storage.test.js test/research.test.js test/security-static.test.js",
     "test:ocr": "node test/ocr-smoke.js",
     "test:ocr-card": "node test/ocr-live-card.js",
     "test:ocr-form-card": "node test/ocr-form-live-card.js",
     "test:visual": "node test/visual-smoke.js",
+    "test:rls": "supabase test db",
     "mobile:sync": "npm run build && npx cap sync",
     "android": "npm run mobile:sync && npx cap open android",
     "ios": "npm run mobile:sync && npx cap open ios"

@@ -3,9 +3,10 @@ const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
 const MAX_IMAGE_EDGE = 2000;
 const logic = window.BCardLogic;
 const ocr = window.BCardOCR;
+const production = window.BCardProduction || null;
 
 const seed = {
-  settings: { online: true, accountId: "acc_demo_01", lastSync: "08:42 hôm nay", activeEventId: "evt_01" },
+  settings: { online: true, accountId: "acc_demo_01", lastSync: "08:42 hôm nay", activeEventId: "evt_01", autoResearch: true },
   events: [
     { id: "evt_01", name: "Vietnam Innovation Summit", date: "06/09/2026", place: "Thiskyhall Sala", contacts: 3 },
     { id: "evt_02", name: "Founder Dinner Saigon", date: "28/08/2026", place: "Quận 1, TP.HCM", contacts: 1 },
@@ -122,8 +123,8 @@ function normalizeStoredData(value) {
   return normalized;
 }
 function loadData() {
-  try { return normalizeStoredData(JSON.parse(localStorage.getItem(STORAGE_KEY))); }
-  catch { return clone(seed); }
+  if (window.__BCARD_TEST__) return clone(seed);
+  return normalizeStoredData({ settings: { ...seed.settings, accountId: "" }, events: [], contacts: [], cards: [], proposals: [] });
 }
 let data = loadData();
 let route = "home";
@@ -140,9 +141,15 @@ const frontFile = document.getElementById("frontFile");
 const backFile = document.getElementById("backFile");
 
 function saveData() {
+  if (window.__BCARD_TEST__) {
+    try { localStorage.setItem("__bcard_test_persistence__", JSON.stringify(data)); updateChrome(); return true; }
+    catch (error) { console.error("BCard test persistence failed", error); return false; }
+  }
+  return (async () => {
   try {
     data.events.forEach(event => { event.contacts = eventContactCount(event.name); });
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    if (production?.repository) await production.repository.save(data);
+    else if (!window.__BCARD_TEST__) throw new Error("Kho dữ liệu chưa sẵn sàng");
     updateChrome();
     return true;
   } catch (error) {
@@ -150,6 +157,7 @@ function saveData() {
     toast("Không thể lưu trên thiết bị", "Dung lượng lưu trữ có thể đã đầy hoặc bị chặn. Thay đổi vừa rồi chưa được áp dụng.");
     return false;
   }
+  })();
 }
 
 function commitMutation(mutator) {
@@ -161,10 +169,15 @@ function commitMutation(mutator) {
     toast("Không thể áp dụng thay đổi", "Dữ liệu trước thao tác đã được giữ nguyên.");
     return false;
   }
-  if (saveData()) return true;
-  data = snapshot;
-  updateChrome();
-  return false;
+  const persisted = saveData();
+  if (typeof persisted === "boolean") {
+    if (persisted) return true;
+    data = snapshot; updateChrome(); return false;
+  }
+  return persisted.then(saved => {
+    if (saved) return true;
+    data = snapshot; updateChrome(); return false;
+  });
 }
 
 function esc(value = "") {
@@ -219,6 +232,15 @@ function updateChrome() {
   const pill = document.getElementById("networkPill");
   pill.classList.toggle("offline", !data.settings.online);
   pill.innerHTML = `<span></span>${data.settings.online ? "Dữ liệu trên thiết bị · đang online" : "Đang offline · dữ liệu trên thiết bị"}`;
+  const account = document.querySelector?.(".account-card");
+  const email = production?.session?.user?.email || (production?.configured ? "Chưa đăng nhập" : "local@development.invalid");
+  if (account) {
+    const label = email.split("@")[0] || "BCard";
+    const initials = label.split(/[._-]/).slice(0, 2).map(part => part[0]?.toUpperCase()).join("") || "BC";
+    account.querySelector(".avatar").textContent = initials;
+    account.querySelector("strong").textContent = label;
+    account.querySelector("small").textContent = email;
+  }
 }
 
 function setRoute(next, options = {}) {
@@ -322,15 +344,37 @@ function renderContactDetail(contact) {
     <section class="panel"><div class="panel-body">
       <div class="profile-head"><span class="avatar large ${esc(contact.color || "")}">${esc(contact.initials)}</span><div class="profile-title"><h2>${esc(contact.name)}</h2><p>${esc(rel.role || "Chưa có chức danh")} · ${esc(rel.company || "Chưa có công ty")}</p><div class="tags profile-tags">${contact.tags.map(t => `<span class="tag">${esc(t)}</span>`).join("")}</div></div><span class="status-pill ${statusClass(contact.sync)}">v${esc(contact.version)} · ${esc(statusLabel(contact.sync))}</span></div>
       <div class="action-row">${phone ? `<button class="button pressable" data-action="call" data-value="${esc(phone.value)}">${icon("phone")} Gọi</button>` : ""}${email ? `<button class="button secondary pressable" data-action="email" data-value="${esc(email.value)}">${icon("mail")} Email</button>` : ""}${rel.website ? `<button class="button secondary pressable" data-action="website" data-value="${esc(rel.website)}">${icon("external-link")} Website công ty</button>` : ""}${contact.personalUrl ? `<button class="button secondary pressable" data-action="website" data-value="${esc(contact.personalUrl)}">${icon("user-round")} Website cá nhân</button>` : ""}<button class="button ghost pressable" data-action="copy-profile" data-id="${esc(contact.id)}">${icon("copy")} Sao chép</button></div>
-      <div class="info-section"><h3>Thông tin liên hệ</h3>${visibleMethods.length ? visibleMethods.map(method => `<div class="info-line"><span class="info-icon">${icon(method.kind === "PHONE" ? "phone" : "mail")}</span><div class="info-copy"><strong>${esc(method.value)} ${method.preferred ? '<span class="tag">Ưu tiên</span>' : ""}</strong><small>${esc(method.label)} · ${method.confirmed ? "Đã xác nhận" : "Chưa xác nhận"}</small><div class="source">Nguồn: ${esc(method.source)} · ID ${esc(method.id)}</div></div><button class="button ghost small pressable" data-action="copy" data-value="${esc(method.value)}">${icon("copy")}<span class="sr-only">Sao chép</span></button></div>`).join("") : '<p class="subhead">Chưa có phương thức liên hệ đang hoạt động.</p>'}${contact.personalUrl ? `<div class="info-line"><span class="info-icon">${icon("user-round")}</span><div class="info-copy"><strong>${esc(contact.personalUrl)}</strong><small>Website cá nhân</small><div class="source">Thuộc Contact</div></div><button class="button ghost small pressable" data-action="website" data-value="${esc(contact.personalUrl)}">${icon("external-link")}<span class="sr-only">Mở website cá nhân</span></button></div>` : ""}</div>
+      <div class="info-section"><h3>Liên hệ cá nhân</h3>${visibleMethods.length ? visibleMethods.map(method => `<div class="info-line"><span class="info-icon">${icon(method.kind === "PHONE" ? "phone" : "mail")}</span><div class="info-copy"><strong>${esc(method.value)} ${method.preferred ? '<span class="tag">Ưu tiên</span>' : ""}</strong><small>${esc(method.label)} · ${method.confirmed ? "Đã xác nhận" : "Chưa xác nhận"}</small><div class="source">Nguồn: ${esc(method.source)} · ID ${esc(method.id)}</div></div><button class="button ghost small pressable" data-action="copy" data-value="${esc(method.value)}">${icon("copy")}<span class="sr-only">Sao chép</span></button></div>`).join("") : '<p class="subhead">Chưa có phương thức liên hệ đang hoạt động.</p>'}${contact.personalUrl ? `<div class="info-line"><span class="info-icon">${icon("user-round")}</span><div class="info-copy"><strong>${esc(contact.personalUrl)}</strong><small>Website cá nhân</small><div class="source">Thuộc Contact</div></div><button class="button ghost small pressable" data-action="website" data-value="${esc(contact.personalUrl)}">${icon("external-link")}<span class="sr-only">Mở website cá nhân</span></button></div>` : ""}</div>
       <div class="info-section"><div class="table-head"><h3 class="flush-heading">Bối cảnh & ghi chú</h3><button class="button secondary small pressable" data-action="add-note" data-id="${esc(contact.id)}">${icon("plus")} Ghi chú</button></div><div class="info-line"><span class="info-icon">${icon("calendar-days")}</span><div class="info-copy"><strong>${esc(contact.event)}</strong><small>Lần gặp gần nhất · ${esc(contact.lastMet)}</small></div></div>${contact.notes.length ? contact.notes.map(note => `<div class="note"><p>${esc(note.text)}</p><small>${esc(note.date)} · ${esc(statusLabel(note.sync))}</small></div>`).join("") : '<p class="subhead">Chưa có ghi chú.</p>'}</div>
     </div></section>
     <aside>
       <section class="panel"><div class="panel-head"><h2>Quan hệ công ty</h2></div><div class="panel-body">${visibleRelationships.length ? visibleRelationships.map(r => `<div class="relationship"><span class="company-logo">${esc(r.company.slice(0,2).toUpperCase())}</span><div><strong>${esc(r.company)} ${r.primary ? '<span class="tag">Hiển thị chính</span>' : ""}</strong><p class="relationship-meta">${esc(r.role)} · ${esc(statusLabel(r.status))}</p><small class="source">Website công ty: ${esc(r.website || "—")}<br/>Nguồn: ${esc(r.source)}</small></div></div>`).join("") : '<p class="subhead">Chưa có quan hệ công ty đang hoạt động.</p>'}</div></section>
+      ${renderCompanyResearch(contact)}
       ${proposals.length ? `<section class="panel stacked-panel"><div class="panel-head"><h2>Đề xuất cập nhật</h2></div><div class="panel-body">${proposals.map(p => `<div class="proposal"><span class="tag">${esc(p.kind)} ${esc(p.target)}</span><p><strong>${esc(p.value)}</strong><br/>Nguồn: ${esc(p.source)}. Card vẫn giữ snapshot riêng.</p><div class="proposal-actions"><button class="button small" data-action="proposal-approve" data-id="${esc(p.id)}">Chấp nhận</button><button class="button secondary small" data-action="proposal-reject" data-id="${esc(p.id)}">Bỏ qua</button></div></div>`).join("")}</div></section>` : ""}
       <section class="panel stacked-panel"><div class="panel-head"><h2>Namecard gốc</h2></div><div class="panel-body">${contact.cards.map(id => { const c = data.cards.find(card => card.id === id && card.lifecycle !== "DELETED"); return c ? `<button class="business-card full-card" data-card="${esc(c.id)}"><div class="card-visual ${esc(c.theme)}"><strong>${esc(c.name)}</strong><span>${esc(c.role)}</span><small>${esc(c.company)}</small></div><div class="card-meta"><small>${esc(c.code)} · snapshot v${esc(c.version)}</small><span class="status-pill ${statusClass(c.sync)}">${esc(statusLabel(c.sync))}</span></div></button>` : ""; }).join("") || '<p class="subhead">Không còn card đang hoạt động.</p>'}</div></section>
     </aside>
   </div>`;
+}
+
+function companyResearchKey(contact) {
+  const relationship = primaryRelationship(contact);
+  const resolved = window.BCardLib?.companyResolver?.resolveCompany({ companyName: relationship.company, website: relationship.website, businessEmail: preferredMethod(contact, "EMAIL")?.value || "" });
+  return resolved?.domain || relationship.company || "";
+}
+
+function renderCompanyResearch(contact) {
+  if (!production?.research) return "";
+  const state = production.research.getState(companyResearchKey(contact));
+  const result = state.result;
+  const statusText = { not_researched: "Chưa nghiên cứu", resolving: "Đang xác định công ty", researching: "Đang nghiên cứu", completed: "Đã hoàn tất", unresolved: "Chưa xác định được", failed: "Nghiên cứu thất bại" }[state.status] || "Chưa nghiên cứu";
+  return `<section class="panel stacked-panel"><div class="panel-head"><div><h2>Thông tin công khai của doanh nghiệp</h2><small class="muted-text">${esc(statusText)}${state.cache ? ` · cache ${esc(state.cache)}` : ""}</small></div><button class="button secondary small pressable" data-action="research-company" data-id="${esc(contact.id)}">${icon("search")} ${state.status === "completed" ? "Làm mới" : "Nghiên cứu"}</button></div><div class="panel-body">${result ? `<div class="insight-card flush-top"><strong>${esc(result.company_name)}</strong><p>${esc(result.summary || "Chưa có tóm tắt.")}</p>${result.official_website ? `<button class="button ghost small pressable" data-action="website" data-value="${esc(result.official_website)}">${icon("external-link")} Website chính thức</button>` : ""}</div><div class="info-section"><h3>Ngành & sản phẩm</h3><p class="subhead">${esc([...(result.industry || []), ...(result.products_services || [])].join(" · ") || "Chưa có dữ liệu")}</p></div><div class="info-section"><h3>Thị trường & khách hàng</h3><p class="subhead">${esc([...(result.markets || []), ...(result.target_customers || [])].join(" · ") || "Chưa có dữ liệu")}</p></div><div class="info-section"><h3>Quy mô & trụ sở</h3><p class="subhead">${esc([result.company_size, result.headquarters].filter(Boolean).join(" · ") || "Chưa có dữ liệu")}</p></div><div class="info-section"><h3>Liên hệ công khai của doanh nghiệp</h3><p class="subhead">${esc((result.public_contacts || []).join(" · ") || "Chưa có dữ liệu")}</p><small class="source">Độ tin cậy ${esc(result.confidence)}% · nghiên cứu ${esc(result.researched_at || "—")}</small></div><div class="info-section"><h3>Nguồn</h3>${(result.sources || []).map(source => `<p><a href="${esc(source.url)}" target="_blank" rel="noopener noreferrer">${esc(source.title)}</a><br><small class="source">${esc(source.retrieved_at)}</small></p>`).join("") || '<p class="subhead">Chưa có nguồn.</p>'}</div>` : `<p class="subhead">${esc(state.message || state.reason || "BCard chỉ nghiên cứu khi có website chính thức hoặc email tên miền doanh nghiệp.")}</p>`}</div></section>`;
+}
+
+async function researchCompany(contact, { manual = false, force = false } = {}) {
+  if (!production?.research || !contact) return;
+  const relationship = primaryRelationship(contact);
+  await production.research.enqueue({ companyName: relationship.company, website: relationship.website, businessEmail: preferredMethod(contact, "EMAIL")?.value || "" }, { manual, force });
+  if (selectedContactId === contact.id) render();
 }
 
 function renderCards() {
@@ -362,9 +406,11 @@ function allSyncObjects() {
 function renderSync() {
   const objects = allSyncObjects();
   const pending = objects.filter(x => x.sync !== "COMPLETE");
+  const issues = Array.isArray(data.settings.syncIssues) ? data.settings.syncIssues : [];
   return `${pageHead("Theo từng object & phiên bản", "Đồng bộ và đối soát", "Acceptance, sync, lifecycle và incident được theo dõi riêng. Card hoàn tất không đại diện cho ghi chú hay hồ sơ liên hệ.", `<button class="button pressable" data-action="sync-now" ${!data.settings.online ? "disabled" : ""}>${icon("refresh-cw")} Đồng bộ ngay</button>`)}
   <div class="sync-summary"><div class="metric"><strong>${data.cards.filter(c => c.acceptance === "LOCAL_ACCEPTED").length}</strong><small>Card LOCAL_ACCEPTED</small></div><div class="metric"><strong>${objects.filter(x => x.sync === "COMPLETE").length}</strong><small>Object COMPLETE</small></div><div class="metric"><strong>${pending.length}</strong><small>Thao tác trong backlog</small></div><div class="metric"><strong>${objects.filter(x => x.lifecycle === "RESTRICTED").length}</strong><small>Đang hạn chế</small></div></div>
-  <section class="panel"><div class="panel-head"><div><h2>Backlog thiết bị này</h2><small class="muted-text">Lần đối soát: ${esc(data.settings.lastSync)}</small></div><button class="button secondary small pressable" data-action="toggle-network">${data.settings.online ? "Mô phỏng offline" : "Kết nối lại"}</button></div><div class="panel-body">${objects.map(item => `<div class="sync-item"><span class="sync-type">${icon(item.icon)}</span><div><strong>${esc(item.title)}</strong><small class="block-text muted-text">${esc(item.type)} · ID ${esc(item.id)}</small></div><span>Phiên bản <strong>v${esc(item.version)}</strong></span><span class="status-pill ${statusClass(item.sync)}">${esc(statusLabel(item.sync))}</span></div>`).join("")}</div></section>`;
+  ${issues.length ? `<section class="panel"><div class="panel-head"><h2>Cần xử lý</h2>${issues.some(item => item.status === "CONFLICT") ? `<button class="button secondary small pressable" data-action="reload-server">Tải bản server</button>` : ""}</div><div class="panel-body">${issues.map(item => `<div class="sync-item"><span class="sync-type">${icon(item.status === "CONFLICT" ? "git-compare" : "triangle-alert")}</span><div><strong>${esc(item.type)} · ${esc(item.objectId)}</strong><small class="block-text muted-text">${item.status === "CONFLICT" ? "Server có phiên bản mới hơn. Thay đổi cục bộ được giữ cho đến khi bạn chủ động tải bản server." : `Mã lỗi: ${esc(item.error || item.status)}`}</small></div><span class="status-pill pending">${esc(item.status)}</span></div>`).join("")}</div></section>` : ""}
+  <section class="panel"><div class="panel-head"><div><h2>Backlog thiết bị này</h2><small class="muted-text">Lần đối soát: ${esc(data.settings.lastSync)}</small></div>${production?.configured ? `<span class="tag">${data.settings.online ? "Online" : "Offline"}</span>` : `<button class="button secondary small pressable" data-action="toggle-network">${data.settings.online ? "Mô phỏng offline" : "Kết nối lại"}</button>`}</div><div class="panel-body">${objects.map(item => `<div class="sync-item"><span class="sync-type">${icon(item.icon)}</span><div><strong>${esc(item.title)}</strong><small class="block-text muted-text">${esc(item.type)} · ID ${esc(item.id)}</small></div><span>Phiên bản <strong>v${esc(item.version)}</strong></span><span class="status-pill ${statusClass(item.sync)}">${esc(statusLabel(item.sync))}</span></div>`).join("")}</div></section>`;
 }
 
 function renderPrivacy() {
@@ -372,13 +418,16 @@ function renderPrivacy() {
   <div class="grid two"><section class="panel"><div class="panel-head"><h2>Quyền kiểm soát dữ liệu</h2></div><div class="panel-body">
     <div class="privacy-card"><span class="privacy-icon">${icon("download")}</span><div><strong>Xuất dữ liệu tài khoản</strong><p>Tải contacts, phương thức liên hệ, quan hệ công ty, card snapshot, ghi chú và nguồn dữ liệu dưới dạng JSON.</p></div><button class="button secondary small pressable" data-action="export">Xuất dữ liệu</button></div>
     <div class="privacy-card"><span class="privacy-icon">${icon("file-search")}</span><div><strong>Yêu cầu quyền chủ thể dữ liệu</strong><p>Tạo yêu cầu xác minh, xác định source và dữ liệu dẫn xuất cần xem xét.</p></div><button class="button secondary small pressable" data-action="data-request">Tạo yêu cầu</button></div>
-    <div class="privacy-card"><span class="privacy-icon">${icon("trash-2")}</span><div><strong>Xóa dữ liệu demo</strong><p>Xóa dữ liệu trong trình duyệt này và khôi phục bộ mẫu ban đầu. Prototype không gửi dữ liệu lên server.</p></div><button class="button danger small pressable" data-action="reset-data">Xóa & đặt lại</button></div>
-  </div></section><aside class="panel"><div class="panel-head"><h2>Phạm vi prototype</h2></div><div class="panel-body"><div class="insight-card flush-top"><strong>Dữ liệu giả trên thiết bị</strong><p>Bản này phục vụ discovery và thử trải nghiệm. Không dùng namecard thật trước khi hoàn tất Core P0 Legal & Store Gate trong tài liệu.</p></div><div class="info-section"><h3>Bốn chiều trạng thái</h3><p class="subhead">Acceptance xác nhận app đã tiếp nhận. Sync theo từng object/version. Lifecycle cho biết dữ liệu còn được dùng. Incident ghi sự cố độc lập.</p></div><div class="info-section"><h3>Cách ly tài khoản</h3><p class="subhead">Bộ dữ liệu hiện tại gắn với <strong>${esc(data.settings.accountId)}</strong>. Search và export chỉ đọc phạm vi này.</p></div></div></aside></div>`;
+    <div class="privacy-card"><span class="privacy-icon">${icon("trash-2")}</span><div><strong>Xóa cache trên thiết bị</strong><p>Xóa bản sao đã đồng bộ của tài khoản hiện tại; operation đang chờ vẫn được giữ để tránh mất dữ liệu.</p></div><button class="button danger small pressable" data-action="reset-data">Xóa cache</button></div>
+  </div></section><aside class="panel"><div class="panel-head"><h2>Quyền riêng tư</h2></div><div class="panel-body"><div class="insight-card flush-top"><strong>${production?.configured ? "Supabase đã cấu hình" : "Chế độ phát triển cục bộ"}</strong><p>${production?.configured ? "Dữ liệu server được bảo vệ bằng Auth, RLS và Storage riêng tư." : "Dữ liệu lưu trong IndexedDB. Đồng bộ và research server cần cấu hình môi trường."}</p></div><div class="info-section"><h3>Bốn chiều trạng thái</h3><p class="subhead">Acceptance xác nhận app đã tiếp nhận. Sync theo từng object/version. Lifecycle cho biết dữ liệu còn được dùng. Incident ghi sự cố độc lập.</p></div><div class="info-section"><h3>Cách ly tài khoản</h3><p class="subhead">Bộ dữ liệu hiện tại gắn với <strong>${esc(data.settings.accountId)}</strong>. Search và export chỉ đọc phạm vi này.</p></div></div></aside></div>`;
 }
 
 function renderAccount() {
-  return `${pageHead("Tài khoản", "Nguyễn Hà", "Thiết bị thử nghiệm · dữ liệu lưu trong trình duyệt")}
-  <section class="panel account-panel"><div class="panel-body"><div class="profile-head"><span class="avatar large peach">NH</span><div class="profile-title"><h2 class="account-name">Nguyễn Hà</h2><p>ha.nguyen@example.com</p><span class="tag">Prototype P0</span></div></div><div class="info-section"><h3>Thiết bị và phiên</h3><div class="info-line"><span class="info-icon">${icon("smartphone")}</span><div class="info-copy"><strong>Thiết bị hiện tại</strong><small>Đang hoạt động · Optimistic concurrency mô phỏng theo object/version</small></div></div></div><button class="button secondary pressable" data-action="export">${icon("download")} Xuất dữ liệu của tôi</button></div></section>`;
+  const email = production?.session?.user?.email || (production?.configured ? "Chưa đăng nhập" : "local@development.invalid");
+  const label = email.split("@")[0] || "BCard";
+  const initials = label.split(/[._-]/).slice(0, 2).map(part => part[0]?.toUpperCase()).join("") || "BC";
+  return `${pageHead("Tài khoản", esc(label), production?.configured ? "Phiên Supabase Auth" : "Chế độ phát triển · IndexedDB")}
+  <section class="panel account-panel"><div class="panel-body"><div class="profile-head"><span class="avatar large peach">${esc(initials)}</span><div class="profile-title"><h2 class="account-name">${esc(label)}</h2><p>${esc(email)}</p><span class="tag">${production?.configured ? "Production" : "Local development"}</span></div></div><div class="info-section"><h3>Thiết bị và phiên</h3><div class="info-line"><span class="info-icon">${icon("smartphone")}</span><div class="info-copy"><strong>Thiết bị hiện tại</strong><small>IndexedDB · optimistic concurrency theo object/version</small></div></div></div><div class="info-section"><h3>Nghiên cứu doanh nghiệp</h3><p class="subhead">Khi bật, BCard chỉ gửi tên công ty, website hoặc tên miền email doanh nghiệp tới Edge Function; không gửi ảnh card, ghi chú hay lịch sử gặp.</p><button class="button secondary pressable" data-action="toggle-auto-research">${icon(data.settings.autoResearch ? "toggle-right" : "toggle-left")} Auto Research: ${data.settings.autoResearch ? "Bật" : "Tắt"}</button></div><div class="action-row"><button class="button secondary pressable" data-action="export">${icon("download")} Xuất dữ liệu của tôi</button>${production?.configured ? `<button class="button ghost pressable" data-action="sign-out">${icon("log-out")} Đăng xuất</button>` : ""}</div></div></section>`;
 }
 
 function render() {
@@ -445,7 +494,7 @@ function filterCards() {
   });
 }
 
-function handleAction(event) {
+async function handleAction(event) {
   const button = event.currentTarget;
   const action = button.dataset.action;
   if (action === "scan") openScan();
@@ -468,22 +517,37 @@ function handleAction(event) {
   if (action === "copy") copyText(button.dataset.value);
   if (action === "copy-profile") copyProfile(button.dataset.id);
   if (action === "add-note") openNote(button.dataset.id);
-  if (action === "proposal-approve" || action === "proposal-reject") resolveProposal(button.dataset.id, action.endsWith("approve"));
-  if (action === "sync-now") syncNow();
+  if (action === "proposal-approve" || action === "proposal-reject") await resolveProposal(button.dataset.id, action.endsWith("approve"));
+  if (action === "sync-now") await syncNow();
   if (action === "toggle-network") {
+    if (production?.configured) return;
     const nextOnline = !data.settings.online;
-    if (commitMutation(() => { data.settings.online = nextOnline; })) {
+    if (await commitMutation(() => { data.settings.online = nextOnline; })) {
       render();
       toast(nextOnline ? "Đã kết nối lại" : "Đang mô phỏng offline", "Tìm kiếm và chỉnh sửa vẫn dùng dữ liệu trên thiết bị.");
     }
   }
-  if (action === "export") exportData();
+  if (action === "export") await exportData();
   if (action === "data-request") openDataRequest();
+  if (action === "sign-out" && production?.auth) await production.auth.signOut();
+  if (action === "research-company") await researchCompany(data.contacts.find(contact => contact.id === button.dataset.id), { manual: true, force: true });
+  if (action === "toggle-auto-research") {
+    if (await commitMutation(() => { data.settings.autoResearch = !data.settings.autoResearch; })) {
+      production?.research?.setAutoEnabled(data.settings.autoResearch); render();
+      toast("Đã cập nhật Auto Research", data.settings.autoResearch ? "Contact đủ điều kiện sẽ được nghiên cứu tự động." : "Bạn vẫn có thể chạy nghiên cứu thủ công.");
+    }
+  }
+  if (action === "reload-server" && production?.configured) {
+    const conflicts = await production.db.listOperations(production.ownerId, ["CONFLICT"]);
+    for (const item of conflicts) await production.db.putOperation({ ...item, sync_status: "SUPERSEDED", last_error_code: "USER_ACCEPTED_SERVER_VERSION", updated_at: new Date().toISOString() });
+    const remote = await production.repository.pullRemote();
+    data = normalizeStoredData(remote); render(); toast("Đã tải bản server", "Các operation conflict được giữ ở trạng thái SUPERSEDED để đối soát.");
+  }
   if (action === "reset-data") confirmReset();
   if (action === "add-event") openEventForm();
   if (action === "set-active-event") {
     const selected = data.events.find(item => item.id === button.dataset.id);
-    if (selected && commitMutation(() => { data.settings.activeEventId = selected.id; })) {
+    if (selected && await commitMutation(() => { data.settings.activeEventId = selected.id; })) {
       render();
       toast("Đã chọn sự kiện", `${selected.name} sẽ được tự điền khi quét card.`);
     }
@@ -648,7 +712,7 @@ function resizeImageDataUrl(dataUrl, mimeType) {
 
 async function fileToDropzone(file, targetId) {
   if (!file) return;
-  if (!String(file.type || "").startsWith("image/")) return toast("Tệp không hợp lệ", "Chỉ chọn ảnh namecard.");
+  if (!new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]).has(String(file.type || "").toLowerCase())) return toast("Tệp không hợp lệ", "Chỉ chọn ảnh JPG, PNG, WebP hoặc HEIC.");
   if (file.size > MAX_IMAGE_BYTES) return toast("Ảnh quá lớn", "Chọn ảnh nhỏ hơn 15 MB.");
   try {
     const dataUrl = await readFileAsDataUrl(file);
@@ -920,7 +984,7 @@ function ocrCorrections(fields, ocrResult) {
     .map(key => ({ field: key, original: ocrResult[key] || "", corrected: fields[key] || "", source: "USER_CONFIRMATION" }));
 }
 
-function persistScan(images, fields, attachContactId = "", ocrResult = null) {
+async function persistScan(images, fields, attachContactId = "", ocrResult = null) {
   const now = new Date();
   const stamp = now.getTime();
   const id = `ct_${stamp}`;
@@ -932,7 +996,7 @@ function persistScan(images, fields, attachContactId = "", ocrResult = null) {
   if (fields.phone) methods.push({ id: `m_${stamp}_p`, kind: "PHONE", label: "Di động", value: fields.phone, preferred: true, status: "ACTIVE", source, confirmed: fields.userConfirmed });
   if (fields.email) methods.push({ id: `m_${stamp}_e`, kind: "EMAIL", label: "Công việc", value: fields.email, preferred: true, status: "ACTIVE", source, confirmed: fields.userConfirmed });
   let proposalCount = 0;
-  const saved = commitMutation(() => {
+  const saved = await commitMutation(() => {
     let scanEvent = data.events.find(item => item.name.toLocaleLowerCase("vi") === fields.eventName.toLocaleLowerCase("vi"));
     if (!scanEvent && fields.eventName !== "Không có sự kiện") {
       scanEvent = {
@@ -952,7 +1016,7 @@ function persistScan(images, fields, attachContactId = "", ocrResult = null) {
       data.proposals.unshift(...proposals);
       contact.cards.unshift(cardId);
       contact.encounters ||= [];
-      contact.encounters.unshift({ id: `enc_${stamp}`, event: fields.eventName, date: now.toISOString(), source, cardId });
+      contact.encounters.unshift({ id: `enc_${stamp}`, event: fields.eventName, event_id: scanEvent?.id || "", date: now.toISOString(), source, cardId });
       contact.event = fields.eventName;
       if (fields.note) contact.notes.unshift({ id: `n_${stamp}`, text: fields.note, date: "Vừa xong", sync: "PENDING", source });
       contact.version += 1;
@@ -960,11 +1024,11 @@ function persistScan(images, fields, attachContactId = "", ocrResult = null) {
       contact.sync = "PENDING";
       contact.lastMet = "Vừa xong";
     } else {
-      data.contacts.unshift({ id, name: fields.name, nameSource: source, initials, color: "peach", draft: !fields.userConfirmed, methods, personalUrl: "", relationships: fields.company ? [{ id: `rel_${stamp}`, company: fields.company, role: fields.role, status: "ACTIVE", primary: true, website: fields.website, source }] : [], tags: fields.userConfirmed ? [] : ["Chưa xác nhận"], event: fields.eventName, encounters: [{ id: `enc_${stamp}`, event: fields.eventName, date: now.toISOString(), source, cardId }], notes: fields.note ? [{ id: `n_${stamp}`, text: fields.note, date: "Vừa xong", sync: "PENDING", source }] : [], cards: [cardId], version: 1, sync: "PENDING", lifecycle: "ACTIVE", incident: "NONE", lastMet: "Vừa xong" });
+      data.contacts.unshift({ id, name: fields.name, nameSource: source, initials, color: "peach", draft: !fields.userConfirmed, methods, personalUrl: "", relationships: fields.company ? [{ id: `rel_${stamp}`, company: fields.company, role: fields.role, status: "ACTIVE", primary: true, website: fields.website, source }] : [], tags: fields.userConfirmed ? [] : ["Chưa xác nhận"], event: fields.eventName, encounters: [{ id: `enc_${stamp}`, event: fields.eventName, event_id: scanEvent?.id || "", date: now.toISOString(), source, cardId }], notes: fields.note ? [{ id: `n_${stamp}`, text: fields.note, date: "Vừa xong", sync: "PENDING", source }] : [], cards: [cardId], version: 1, sync: "PENDING", lifecycle: "ACTIVE", incident: "NONE", lastMet: "Vừa xong" });
     }
     data.cards.unshift({
       id: cardId, code, contactId: attachContactId || id, name: fields.name, company: fields.company, role: fields.role,
-      scanned: "Vừa xong", event: fields.eventName, acceptance: "LOCAL_ACCEPTED", sync: "PENDING", lifecycle: "ACTIVE", incident: "NONE", version: 1, theme: "",
+      scanned: "Vừa xong", event: fields.eventName, event_id: scanEvent?.id || "", acceptance: "LOCAL_ACCEPTED", sync: "PENDING", lifecycle: "ACTIVE", incident: "NONE", version: 1, theme: "",
       front: images.front, back: images.back, backBlank: images.backBlank,
       rawOcr: ocrResult?.rawText || "", ocrConfidence: Number(ocrResult?.confidence || 0), ocrLanguage: ocrResult?.language || "manual",
       reviewStatus: fields.userConfirmed ? "USER_CONFIRMED" : "UNCONFIRMED", reviewConfidence: fields.userConfirmed ? 100 : 0, confirmedAt: fields.userConfirmed ? now.toISOString() : "",
@@ -977,13 +1041,15 @@ function persistScan(images, fields, attachContactId = "", ocrResult = null) {
   closeModal();
   setRoute("contacts", { contactId: attachContactId || id });
   toast("Đã lưu bền trên thiết bị", attachContactId ? `Card đã liên kết; có ${proposalCount} đề xuất cần duyệt.` : "Card đạt LOCAL_ACCEPTED và đã vào hàng đợi đồng bộ.");
+  const savedContact = data.contacts.find(contact => contact.id === (attachContactId || id));
+  researchCompany(savedContact).catch(() => {});
 }
 
 function openNote(contactId) {
   showModal(`<div class="modal-head"><h2>Thêm ghi chú</h2>${closeIconButton()}</div><div class="modal-body"><div class="field"><label for="noteText">Bối cảnh cuộc gặp</label><textarea id="noteText" autofocus placeholder="Điểm cần nhớ, nhu cầu hoặc lời hẹn…"></textarea></div></div><div class="modal-footer"><button class="button secondary pressable" data-close>Hủy</button><button class="button pressable" id="saveNote">${icon("save")} Lưu ghi chú</button></div>`);
-  document.getElementById("saveNote").addEventListener("click", () => {
+  document.getElementById("saveNote").addEventListener("click", async () => {
     const text = document.getElementById("noteText").value.trim(); if (!text) return;
-    const saved = commitMutation(() => {
+    const saved = await commitMutation(() => {
       const contact = data.contacts.find(c => c.id === contactId);
       if (!contact) throw new Error("Contact no longer exists");
       contact.notes.unshift({ id: `n_${Date.now()}`, text, date: "Vừa xong", sync: "PENDING" });
@@ -1005,8 +1071,8 @@ function openCard(id) {
   document.getElementById("confirmCardReview")?.addEventListener("click", () => confirmCardReview(id));
 }
 
-function confirmCardReview(id) {
-  const saved = commitMutation(() => {
+async function confirmCardReview(id) {
+  const pendingSave = commitMutation(() => {
     const card = data.cards.find(item => item.id === id && item.lifecycle === "ACTIVE");
     if (!card) throw new Error("Card no longer exists");
     card.reviewStatus = "USER_CONFIRMED";
@@ -1024,6 +1090,8 @@ function confirmCardReview(id) {
       contact.sync = "PENDING";
     }
   });
+  render();
+  const saved = await pendingSave;
   if (!saved) return;
   const card = data.cards.find(item => item.id === id);
   closeModal();
@@ -1039,8 +1107,8 @@ function openRelinkCard(id) {
   document.querySelectorAll("[data-relink-contact]").forEach(button => button.addEventListener("click", () => relinkCard(id, button.dataset.relinkContact)));
 }
 
-function relinkCard(cardId, contactId) {
-  const saved = commitMutation(() => {
+async function relinkCard(cardId, contactId) {
+  const saved = await commitMutation(() => {
     const card = data.cards.find(item => item.id === cardId);
     const target = data.contacts.find(item => item.id === contactId && item.lifecycle === "ACTIVE");
     if (!card || !target) throw new Error("Card or contact no longer exists");
@@ -1080,11 +1148,12 @@ function relinkCard(cardId, contactId) {
   toast("Đã sửa liên kết", "Snapshot card đã chuyển đúng contact và không ghi đè trường dữ liệu.");
 }
 
-function deleteCard(id) {
-  const saved = commitMutation(() => {
+async function deleteCard(id) {
+  const saved = await commitMutation(() => {
     const card = data.cards.find(c => c.id === id); if (!card) throw new Error("Card no longer exists");
     card.lifecycle = "DELETED";
     card.sync = "PENDING";
+    card.version = Number(card.version || 0) + 1;
     card.purgedEvidenceSummary = { hadFront: Boolean(card.front), hadBack: Boolean(card.back), hadRawOcr: Boolean(card.rawOcr), correctionCount: card.corrections?.length || 0 };
     card.front = "";
     card.back = "";
@@ -1117,10 +1186,10 @@ function proposalIsApplicable(contact, proposal) {
   return true;
 }
 
-function resolveProposal(id, approve) {
+async function resolveProposal(id, approve) {
   const proposal = data.proposals.find(p => p.id === id); if (!proposal) return;
   let superseded = false;
-  const saved = commitMutation(() => {
+  const pendingSave = commitMutation(() => {
     const contact = data.contacts.find(c => c.id === proposal.contactId);
     if (!contact) throw new Error("Contact no longer exists");
     if (approve && !proposalIsApplicable(contact, proposal)) {
@@ -1139,8 +1208,9 @@ function resolveProposal(id, approve) {
     proposal.decidedBy = data.settings.accountId;
     contact.sync = "PENDING";
   });
-  if (!saved) return;
   render();
+  const saved = await pendingSave;
+  if (!saved) return;
   if (superseded) toast("Đề xuất không còn áp dụng", "Target đã thay đổi; BCard không ghi đè dữ liệu mới hơn.");
   else toast(approve ? "Đã chấp nhận đề xuất" : "Đã bỏ qua đề xuất", "Snapshot card nguồn vẫn được giữ riêng.");
 }
@@ -1177,53 +1247,65 @@ function applyApprovedProposal(contact, proposal) {
   if (proposal.kind === "REMOVE" && proposal.target === "PERSONAL_URL") contact.personalUrl = "";
 }
 
-function syncNow() {
+async function syncNow() {
   if (!data.settings.online) return toast("Không có kết nối", "Các thay đổi vẫn được giữ trên thiết bị.");
+  if (!production?.configured) return toast("Chưa cấu hình Supabase", "Dữ liệu vẫn được giữ bền trên thiết bị; đồng bộ server chưa được thực hiện.");
   toast("Đang đối soát", "Kiểm tra từng object và phiên bản…");
   $(".status-pill.pending").text("Đang tải…");
-  setTimeout(() => {
-    const saved = commitMutation(() => {
+  const result = await production.sync.process({ manual: true });
+  const operations = await production.db.listOperations(production.ownerId, ["PENDING", "RETRY_WAIT", "AUTH_REQUIRED", "CONFLICT"]);
+  const complete = operations.length === 0;
+  data.settings.syncIssues = operations.map(item => ({ type: item.object_type, objectId: item.object_id, status: item.sync_status, error: item.last_error_code || "" }));
+  if (complete) {
+    await commitMutation(() => {
       data.contacts.forEach(c => { if (c.lifecycle === "ACTIVE") c.sync = "COMPLETE"; c.notes.forEach(n => n.sync = "COMPLETE"); });
       data.cards.forEach(c => { if (["ACTIVE", "DELETED"].includes(c.lifecycle)) c.sync = "COMPLETE"; });
       data.settings.lastSync = "Vừa xong";
     });
-    render();
-    if (saved) toast("Đồng bộ hoàn tất", "ACK đã khớp từng object/version trong dữ liệu mô phỏng.");
-  }, 900);
+  }
+  render();
+  toast(complete ? "Đồng bộ hoàn tất" : "Đồng bộ còn chờ", complete ? `Server đã ACK ${result.processed || 0} object.` : `${operations.length} operation cần retry, đăng nhập hoặc xử lý conflict.`);
 }
 
-function exportData() {
-  const payload = { exportedAt: new Date().toISOString(), accountId: data.settings.accountId, contacts: data.contacts, cards: data.cards, events: data.events, updateProposals: data.proposals };
+async function exportData() {
+  let payload = await production?.repository?.exportData();
+  payload ||= { exportedAt: new Date().toISOString(), accountId: data.settings.accountId, contacts: data.contacts, cards: data.cards, events: data.events, updateProposals: data.proposals };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
   const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "bcard-data-export.json"; link.click(); URL.revokeObjectURL(link.href);
   toast("Đã xuất dữ liệu", "Tệp JSON bao gồm nguồn và trạng thái từng bản ghi.");
 }
 
 function openDataRequest() {
-  showModal(`<div class="modal-head"><h2>Yêu cầu quyền dữ liệu</h2>${closeIconButton()}</div><div class="modal-body"><div class="form-grid"><div class="field"><label for="requestType">Loại yêu cầu</label><select id="requestType"><option>Truy cập dữ liệu</option><option>Chỉnh sửa dữ liệu</option><option>Hạn chế xử lý</option><option>Xóa dữ liệu</option></select></div><div class="field"><label for="requestEmail">Email xác minh</label><input id="requestEmail" type="email" autocomplete="email" value="ha.nguyen@example.com" /></div><div class="field wide"><label for="requestScope">Phạm vi / mô tả</label><textarea id="requestScope" placeholder="Mô tả người, card hoặc dữ liệu liên quan…"></textarea></div></div><div class="scan-hint">${icon("shield-check")}<span>Quy trình thật cần xác minh, xác định source và derived fields/relationships, review, hành động, audit và phản hồi.</span></div></div><div class="modal-footer"><button class="button secondary pressable" data-close>Hủy</button><button class="button pressable" id="submitRequest">${icon("file-check-2")} Ghi nhận yêu cầu demo</button></div>`);
-  document.getElementById("submitRequest").addEventListener("click", () => { closeModal(); toast("Đã ghi nhận yêu cầu demo", "Mã yêu cầu DSR-2026-0001 · chưa gửi ra hệ thống ngoài."); });
+  const email = production?.session?.user?.email || "";
+  showModal(`<div class="modal-head"><h2>Yêu cầu quyền dữ liệu</h2>${closeIconButton()}</div><div class="modal-body"><div class="form-grid"><div class="field"><label for="requestType">Loại yêu cầu</label><select id="requestType"><option value="ACCESS">Truy cập dữ liệu</option><option value="RECTIFY">Chỉnh sửa dữ liệu</option><option value="RESTRICT">Hạn chế xử lý</option><option value="DELETE">Xóa dữ liệu</option></select></div><div class="field"><label for="requestEmail">Email xác minh</label><input id="requestEmail" type="email" autocomplete="email" value="${esc(email)}" /></div><div class="field wide"><label for="requestScope">Phạm vi / mô tả</label><textarea id="requestScope" placeholder="Mô tả người, card hoặc dữ liệu liên quan…"></textarea></div></div><div class="scan-hint">${icon("shield-check")}<span>Yêu cầu được giữ bền trên thiết bị và đồng bộ có audit khi server khả dụng.</span></div></div><div class="modal-footer"><button class="button secondary pressable" data-close>Hủy</button><button class="button pressable" id="submitRequest">${icon("file-check-2")} Ghi nhận yêu cầu</button></div>`);
+  document.getElementById("submitRequest").addEventListener("click", async () => {
+    try {
+      const request = await production.repository.createDataRequest({ type: document.getElementById("requestType").value, email: document.getElementById("requestEmail").value, scope: document.getElementById("requestScope").value });
+      closeModal(); toast("Đã ghi nhận yêu cầu", `${request.id} đang chờ xác minh và đồng bộ.`);
+    } catch (error) { toast("Không thể ghi nhận yêu cầu", error.message); }
+  });
 }
 
 function confirmReset() {
-  showModal(`<div class="modal-head"><h2>Xóa dữ liệu demo?</h2>${closeIconButton()}</div><div class="modal-body"><p>Thao tác này xóa các thay đổi trong localStorage rồi nạp lại dữ liệu mẫu ban đầu.</p></div><div class="modal-footer"><button class="button secondary pressable" data-close>Giữ lại</button><button class="button danger pressable" id="confirmReset">${icon("trash-2")} Xóa & đặt lại</button></div>`);
-  document.getElementById("confirmReset").addEventListener("click", () => { if (!commitMutation(() => { data = clone(seed); })) return; closeModal(); setRoute("home"); toast("Đã đặt lại dữ liệu", "Bộ dữ liệu mẫu đã được khôi phục."); });
+  showModal(`<div class="modal-head"><h2>Xóa dữ liệu thiết bị?</h2>${closeIconButton()}</div><div class="modal-body"><p>Thao tác này xóa cache đã đồng bộ của tài khoản hiện tại. Các operation đang chờ được giữ để tránh mất dữ liệu.</p></div><div class="modal-footer"><button class="button secondary pressable" data-close>Giữ lại</button><button class="button danger pressable" id="confirmReset">${icon("trash-2")} Xóa cache</button></div>`);
+  document.getElementById("confirmReset").addEventListener("click", async () => { if (!production?.ownerId) return; await production.db.clearAccount(production.ownerId, { preservePending: true }); data = normalizeStoredData({ settings: { accountId: production.ownerId }, events: [], contacts: [], cards: [], proposals: [] }); closeModal(); setRoute("home"); toast("Đã xóa cache", "Operation đang chờ vẫn được giữ an toàn."); });
 }
 
 function openEventForm() {
   const today = new Date().toISOString().slice(0, 10);
   showModal(`<div class="modal-head"><h2>Tạo sự kiện</h2>${closeIconButton()}</div><div class="modal-body"><div class="form-grid"><div class="field wide"><label for="eventName">Tên sự kiện</label><input id="eventName" placeholder="Ví dụ: Founder Meetup" /></div><div class="field"><label for="eventDate">Ngày</label><input id="eventDate" type="date" value="${today}" /></div><div class="field"><label for="eventPlace">Địa điểm</label><input id="eventPlace" autocomplete="street-address" placeholder="TP.HCM" /></div></div><div class="scan-hint">${icon("scan-line")}<span>Sự kiện mới sẽ tự trở thành sự kiện đang dùng và được điền sẵn ở lần quét tiếp theo.</span></div></div><div class="modal-footer"><button class="button secondary pressable" data-close>Hủy</button><button class="button pressable" id="saveEvent">${icon("calendar-plus")} Tạo sự kiện</button></div>`);
-  document.getElementById("saveEvent").addEventListener("click", () => {
+  document.getElementById("saveEvent").addEventListener("click", async () => {
     const name = document.getElementById("eventName").value.trim();
     if (!name) return;
     const existing = data.events.find(event => event.name.toLocaleLowerCase("vi") === name.toLocaleLowerCase("vi"));
     if (existing) {
-      if (!commitMutation(() => { data.settings.activeEventId = existing.id; })) return;
+      if (!await commitMutation(() => { data.settings.activeEventId = existing.id; })) return;
       closeModal();
       render();
       return toast("Đã chọn sự kiện hiện có", `${existing.name} sẽ được tự điền khi quét card.`);
     }
     const eventId = `evt_${Date.now()}`;
-    const saved = commitMutation(() => {
+    const saved = await commitMutation(() => {
       data.events.unshift({ id: eventId, name, date: document.getElementById("eventDate").value || "Chưa đặt ngày", place: document.getElementById("eventPlace").value || "Chưa có địa điểm", contacts: 0 });
       data.settings.activeEventId = eventId;
     });
@@ -1261,7 +1343,74 @@ function handleModalKeydown(event) {
   else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
 }
 
-$(function () {
+function setAuthGate(visible, message = "") {
+  const gate = document.getElementById("authGate");
+  if (!gate) return;
+  gate.hidden = !visible;
+  document.querySelector(".app-shell")?.setAttribute("aria-hidden", String(visible));
+  if (message) document.getElementById("authError").textContent = message;
+  if (visible) document.getElementById("authEmail")?.focus();
+}
+
+function bindAuthGate() {
+  if (!production?.configured) return;
+  let signUp = false;
+  const form = document.getElementById("authForm");
+  const mode = document.getElementById("authMode");
+  mode.addEventListener("click", () => {
+    signUp = !signUp;
+    document.getElementById("authTitle").textContent = signUp ? "Tạo tài khoản" : "Đăng nhập";
+    document.getElementById("authSubmit").textContent = signUp ? "Tạo tài khoản" : "Đăng nhập";
+    mode.textContent = signUp ? "Tôi đã có tài khoản" : "Tạo tài khoản mới";
+    document.getElementById("authPassword").autocomplete = signUp ? "new-password" : "current-password";
+    document.getElementById("authError").textContent = "";
+  });
+  form.addEventListener("submit", async event => {
+    event.preventDefault();
+    const submit = document.getElementById("authSubmit"); submit.disabled = true;
+    document.getElementById("authError").textContent = "";
+    try {
+      const email = document.getElementById("authEmail").value; const password = document.getElementById("authPassword").value;
+      const session = signUp ? await production.auth.signUp(email, password) : await production.auth.signIn(email, password);
+      if (!session && signUp) document.getElementById("authDescription").textContent = "Hãy kiểm tra email để xác nhận tài khoản rồi đăng nhập.";
+    } catch (error) { document.getElementById("authError").textContent = error.message || "Không thể xác thực"; }
+    finally { submit.disabled = false; }
+  });
+  production.subscribe(async event => {
+    if (event.type !== "auth") return;
+    if (!production.ownerId) {
+      data = normalizeStoredData({ settings: { accountId: "" }, events: [], contacts: [], cards: [], proposals: [] });
+      setAuthGate(true, event.authEvent?.reason === "SESSION_EXPIRED" ? "Phiên đã hết hạn. Vui lòng đăng nhập lại." : "");
+      return;
+    }
+    let loaded = await production.repository.load();
+    if (navigator.onLine) {
+      await production.sync.process().catch(() => {});
+      const pending = await production.db.listOperations(production.ownerId, ["PENDING", "RETRY_WAIT", "AUTH_REQUIRED", "CONFLICT", "IN_FLIGHT"]);
+      if (!pending.length) loaded = await production.repository.pullRemote().catch(() => loaded);
+    }
+    data = normalizeStoredData(loaded || { settings: { accountId: production.ownerId }, events: [], contacts: [], cards: [], proposals: [] });
+    production.research?.setAutoEnabled(data.settings.autoResearch ?? production.config?.autoResearch ?? true);
+    setAuthGate(false); render(); updateChrome();
+  });
+}
+
+$(async function () {
+  if (production) await production.ready;
+  bindAuthGate();
+  if (production?.configured && !production.ownerId) setAuthGate(true);
+  else if (production?.repository) {
+    let loaded = await production.repository.load();
+    if (production.configured && production.ownerId && navigator.onLine) {
+      await production.sync.process().catch(() => {});
+      const pending = await production.db.listOperations(production.ownerId, ["PENDING", "RETRY_WAIT", "AUTH_REQUIRED", "CONFLICT", "IN_FLIGHT"]);
+      if (!pending.length) loaded = await production.repository.pullRemote().catch(() => loaded);
+    }
+    data = normalizeStoredData(loaded || (production.configured ? { settings: { accountId: production.ownerId }, events: [], contacts: [], cards: [], proposals: [] } : seed));
+    if (!loaded) await production.repository.save(data);
+  }
+  if (!production?.configured || production.ownerId) setAuthGate(false);
+  production?.research?.setAutoEnabled(data.settings.autoResearch ?? production.config?.autoResearch ?? true);
   const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
   let storedTheme = "";
   try { storedTheme = localStorage.getItem("memento-theme") || ""; }
@@ -1283,8 +1432,8 @@ $(function () {
   $(frontFile).on("change.shell", () => { fileToDropzone(frontFile.files[0], "frontDrop"); frontFile.value = ""; });
   $(backFile).on("change.shell", () => { fileToDropzone(backFile.files[0], "backDrop"); backFile.value = ""; });
   $(document).on("keydown.shell", handleModalKeydown);
-  $(window).on("offline.shell", () => { if (commitMutation(() => { data.settings.online = false; })) toast("Đã chuyển sang offline", "Tìm kiếm vẫn hoạt động trên dữ liệu thiết bị."); });
-  $(window).on("online.shell", () => { if (commitMutation(() => { data.settings.online = true; })) toast("Đã có kết nối", "Bạn có thể đối soát các thay đổi đang chờ."); });
+  $(window).on("offline.shell", async () => { if (await commitMutation(() => { data.settings.online = false; })) toast("Đã chuyển sang offline", "Tìm kiếm vẫn hoạt động trên dữ liệu thiết bị."); });
+  $(window).on("online.shell", async () => { if (await commitMutation(() => { data.settings.online = true; })) { toast("Đã có kết nối", "BCard đang đối soát các thay đổi chờ."); production?.sync?.process().catch(() => {}); } });
 
   updateChrome();
   render();
