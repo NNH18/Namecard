@@ -1,5 +1,7 @@
 # BCard v1.1.0 — Danh sách lỗi và cách sửa
 
+> Tài liệu audit lịch sử của prototype. Không dùng các mô tả implementation hoặc bằng chứng trong file này để đánh giá nhánh hardening hiện tại; xem `docs/HARDENING_REPORT.md` và `docs/TEST_EVIDENCE.md`.
+
 > **Phạm vi:** audit 360 từ giao diện đến trải nghiệm người dùng, trên mã nguồn tại `v1.1.0`.
 > **Cách kiểm chứng:** mọi số đo trong file này lấy từ **Chrome thật** (Playwright + Chrome cài trên máy), viewport 390×844 và các bề rộng 320/360/375/390/430/1024, chạy cả light theme và dark theme. Không có con số nào suy ra từ việc đọc code.
 > **Tổng:** 15 hạng mục — 4 P1, 6 P2, 2 P3, 3 hạ tầng. Thêm 1 hạng mục chờ quyết định (mục 7) và 6 điều **không phải lỗi** đã loại bỏ (mục 6).

@@ -1,6 +1,6 @@
 # BCard staging hardening report
 
-Status: **Engineering hardening completed in the candidate branch. Ready for controlled staging validation with fake data after CI database verification.** This is not production, compliance, store or real-card-pilot approval.
+Status: **Engineering hardening completed. Ready for controlled staging validation with fake data.** GitHub Actions verified both web and Supabase database jobs. This is not production, compliance, store or real-card-pilot approval.
 
 ## Files changed
 
@@ -34,3 +34,18 @@ Status: **Engineering hardening completed in the candidate branch. Ready for con
 ## External gates
 
 Legal/Store Gate, real Supabase staging credentials, live Edge Function/provider validation, Android/iOS device security tests, backup/restore exercise, threat-model review, retention approval and incident/support ownership remain required before any real-card pilot or production claim.
+
+## Final self-audit
+
+| Control | Result |
+|---|---|
+| Offline delete can upload older PII; older UPSERT can run; absent DELETE can create PII row | NO / NO / NO |
+| Native refresh token remains in IndexedDB/plaintext | NO |
+| Controlled non-user DSR workflow exists; ordinary user/support has cross-tenant lookup | YES / NO |
+| Provenance uses stable IDs and restores after pull | YES / YES |
+| Tenant AUDITOR/support has broad raw PII; authenticated REST bypasses sync | NO / NO |
+| Research can create a duplicate TenantCompany or accept named-person contact by default | NO / NO |
+| Research quota and server normalized uniqueness are atomic/authoritative | YES / YES |
+| Durable conflict evidence, current CI and commit-bound evidence exist | YES / YES / YES |
+| Repository contains detected server secrets or supplied real-card PII | NO |
+| Repository claims production/compliance/store/real-card-pilot readiness | NO |
