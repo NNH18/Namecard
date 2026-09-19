@@ -17,7 +17,7 @@ function createElement() {
   };
 }
 
-function createAppSandbox() {
+function createAppSandbox(production = null) {
   const elements = new Map();
   const storage = {
     fail: false,
@@ -48,6 +48,7 @@ function createAppSandbox() {
     window: {
       __BCARD_TEST__: true,
       BCardLogic: logic,
+      BCardProduction: production,
       matchMedia() { return { matches: false }; },
       scrollTo() {}, location: { href: "" },
       setTimeout() { return 0; }
@@ -58,6 +59,24 @@ function createAppSandbox() {
   vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "app.js"), "utf8"), sandbox, { filename: "app.js" });
   return { sandbox, storage };
 }
+
+test("auto research waits until TenantCompany sync has no pending operation", async () => {
+  const calls = [];
+  let pending = true;
+  const production = {
+    configured: true,
+    ownerId: "owner_test",
+    sync: { async process() { calls.push("sync"); } },
+    db: { async listOperations() { return pending ? [{ object_type: "tenant_company", object_id: "company_rel_1" }] : []; } },
+    research: { async enqueue(input) { calls.push(`research:${input.tenantCompanyId}`); return { status: "completed" }; } }
+  };
+  const { sandbox } = createAppSandbox(production);
+  await vm.runInContext(`syncThenResearch(data.contacts.find(item => item.id === "ct_anh"))`, sandbox);
+  assert.deepEqual(calls, ["sync"]);
+  pending = false;
+  await vm.runInContext(`syncThenResearch(data.contacts.find(item => item.id === "ct_anh"))`, sandbox);
+  assert.deepEqual(calls, ["sync", "sync", "research:company_rel_1"]);
+});
 
 test("commitMutation rollback khi localStorage ném QuotaExceededError", () => {
   const { sandbox, storage } = createAppSandbox();
@@ -87,19 +106,21 @@ test("persistScan attach chỉ tạo proposal và giữ nguyên contact methods"
   vm.runInContext(`closeModal = () => {}; setRoute = () => {}; toast = () => {};`, sandbox);
   const result = vm.runInContext(`(() => {
     const contact = data.contacts.find(item => item.id === "ct_anh");
-    const before = JSON.stringify(contact.methods);
+    const before = contact.methods.map(item => ({ id: item.id, value: item.value, status: item.status }));
     persistScan(
       { front: "data:image/png;base64,AA==", back: "", backBlank: true },
       { name: "Trần Minh Anh", role: "CEO", company: "Nova Solutions", eventName: "Vietnam Innovation Summit", phone: "+84 903 456 789", email: "new@nova.vn", website: "novasolutions.vn", note: "", personalUrl: "", removeTargets: [] },
       "ct_anh"
     );
     return {
-      methodsUnchanged: before === JSON.stringify(contact.methods),
+      methodsUnchanged: JSON.stringify(before) === JSON.stringify(contact.methods.map(item => ({ id: item.id, value: item.value, status: item.status }))),
+      sameValueHasNewCardSource: contact.methods.find(item => item.value === "+84 903 456 789").provenanceSources.some(item => item.sourceObjectId.startsWith("card_")),
       hasCard: contact.cards.some(id => id.startsWith("card_")),
       proposals: data.proposals.filter(item => item.contactId === "ct_anh" && item.status === "PENDING").map(item => item.kind)
     };
   })()`, sandbox);
   assert.equal(result.methodsUnchanged, true);
+  assert.equal(result.sameValueHasNewCardSource, true);
   assert.equal(result.hasCard, true);
   assert.ok(result.proposals.includes("ADD"));
   assert.ok(result.proposals.includes("UPDATE"));
@@ -188,9 +209,11 @@ test("deleteCard xóa payload PII nhưng giữ trạng thái acceptance", () => 
     card.rawOcr = "PRIVATE";
     card.corrections = [{ field: "name" }];
     deleteCard(card.id);
-    return { lifecycle: card.lifecycle, acceptance: card.acceptance, front: card.front, rawOcr: card.rawOcr, corrections: card.corrections.length, purged: card.purgedEvidenceSummary };
+    return { lifecycle: card.lifecycle, acceptance: card.acceptance, contentSync: card.sync, deletePropagation: card.deletePropagation, front: card.front, rawOcr: card.rawOcr, corrections: card.corrections.length, purged: card.purgedEvidenceSummary };
   })()`, sandbox);
   assert.equal(result.lifecycle, "DELETED");
+  assert.equal(result.deletePropagation, "PENDING");
+  assert.equal(result.contentSync, "COMPLETE");
   assert.equal(result.acceptance, "LOCAL_ACCEPTED");
   assert.equal(result.front, "");
   assert.equal(result.rawOcr, "");

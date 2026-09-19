@@ -12,6 +12,7 @@ test("private image path is owner-bound and stable", async () => {
   await storage.remove("owner_one", [image.path]); assert.equal(removals.length, 1);
   await assert.rejects(() => storage.signedUrl("owner_one", image.path, 901), /thời hạn/);
   await assert.rejects(() => storage.upload("owner_two", image), /account boundary/);
+  await assert.rejects(() => storage.download("owner_two", image.path), /account hiện tại/);
 });
 
 test("image validation rejects unknown content and oversize", () => {

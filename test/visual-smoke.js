@@ -3,7 +3,9 @@ const path = require("node:path");
 const fs = require("node:fs");
 
 const baseUrl = process.env.BCARD_URL || "http://127.0.0.1:4173";
-const chromePath = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
+const chromePath = [process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH, "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe", "/usr/bin/google-chrome", "/usr/bin/chromium", "/usr/bin/chromium-browser"].filter(Boolean).find(candidate => fs.existsSync(candidate));
+const outputDir = process.env.BCARD_VISUAL_OUTPUT || path.join(process.cwd(), "test-results", "visual");
+fs.mkdirSync(outputDir, { recursive: true });
 
 async function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -42,7 +44,7 @@ async function captureContacts(browser, width, height) {
   assert(layout.headingTop >= layout.topbarBottom, `${width}px tiêu đề bị topbar che`);
   assert(layout.lastChipRight <= layout.viewportWidth, `${width}px chip cuối bị cắt`);
   assert(cspErrors.length === 0, `${width}px có lỗi CSP: ${cspErrors.join(" | ")}`);
-  await page.screenshot({ path: path.join(process.cwd(), `audit-v1.1.0-${width}-contacts.png`), fullPage: true });
+  await page.screenshot({ path: path.join(outputDir, `audit-${width}-contacts.png`), fullPage: true });
   await page.close();
 }
 
@@ -108,8 +110,8 @@ async function verifyDuplicateFlow(browser) {
   await page.locator("[data-relink-contact='ct_khoa']").click();
   await page.locator(".page-head h1").filter({ hasText: "Lê Quốc Khoa" }).waitFor();
   assert(cspErrors.length === 0, `Luồng scan có lỗi CSP: ${cspErrors.join(" | ")}`);
-  fs.writeFileSync(path.join(process.cwd(), "BCard_ComputedStyle_Evidence_v1.1.0.json"), JSON.stringify({ computedStyle, cspErrors }, null, 2));
-  await page.screenshot({ path: path.join(process.cwd(), "audit-v1.1.0-card-image.png"), fullPage: true });
+  fs.writeFileSync(path.join(outputDir, "computed-style.json"), JSON.stringify({ computedStyle, cspErrors }, null, 2));
+  await page.screenshot({ path: path.join(outputDir, "audit-card-image.png"), fullPage: true });
   await page.close();
 }
 
@@ -177,14 +179,15 @@ async function captureHome(browser) {
   await page.locator(".hero-card-stage").hover();
   await page.waitForTimeout(100);
   assert(cspErrors.length === 0, `Hero interaction có lỗi CSP: ${cspErrors.join(" | ")}`);
-  await page.screenshot({ path: path.join(process.cwd(), "audit-v1.1.0-390-home.png"), fullPage: true });
+  await page.screenshot({ path: path.join(outputDir, "audit-390-home.png"), fullPage: true });
   await page.locator("#themeButton").click();
   await page.waitForTimeout(500);
-  await page.screenshot({ path: path.join(process.cwd(), "audit-v1.1.0-390-home-dark.png"), fullPage: true });
+  await page.screenshot({ path: path.join(outputDir, "audit-390-home-dark.png"), fullPage: true });
   await page.close();
 }
 
 (async () => {
+  if (!chromePath) throw new Error("Không tìm thấy Chrome/Chromium; đặt PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH");
   const browser = await chromium.launch({ headless: true, executablePath: chromePath });
   try {
     await captureHome(browser);

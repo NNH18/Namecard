@@ -25,41 +25,41 @@ test("parser suy ra website công ty từ tên miền email", () => {
   assert.equal(parsed.website, "horizoncapital.vn");
 });
 
-test("ưu tiên tên người, chức danh và số mobile trên card AEON", () => {
+test("ưu tiên tên người, chức danh và số mobile trên card doanh nghiệp giả lập", () => {
   const parsed = ocr.parseBusinessCardText(`
-AEON TOPVALU VIETNAM COMPANY LIMITED
-NGUYEN MINH THUC
-Food and HBC Division
-General Manager lạ
-10th Floor, Unit B1, Robot Tower
-Tel: (84-28) 3832 8800
-Tax Code: 0313756193
-Mobile: 0938-638-881
-Email: thuc.nguyen@aeontopvalu.com.vn
-Planting Seeds of Growth
+EXAMPLE DYNAMICS VIETNAM COMPANY LIMITED
+NGUYEN AN TEST
+Product Division
+General Manager
+10 Example Street, HCMC, Vietnam
+Tel: (84-28) 3000 0000
+Tax Code: 0000000000
+Mobile: 0900-000-001
+Email: an.nguyen@example.test
+Generated fixture for automated testing
   `);
-  assert.equal(parsed.name, "NGUYEN MINH THUC");
+  assert.equal(parsed.name, "NGUYEN AN TEST");
   assert.equal(parsed.role, "General Manager");
-  assert.equal(parsed.company, "AEON TOPVALU VIETNAM COMPANY LIMITED");
-  assert.equal(parsed.phone.replace(/\D/g, ""), "0938638881");
-  assert.equal(parsed.email, "thuc.nguyen@aeontopvalu.com.vn");
-  assert.equal(parsed.website, "aeontopvalu.com.vn");
+  assert.equal(parsed.company, "EXAMPLE DYNAMICS VIETNAM COMPANY LIMITED");
+  assert.equal(parsed.phone.replace(/\D/g, ""), "0900000001");
+  assert.equal(parsed.email, "an.nguyen@example.test");
+  assert.equal(parsed.website, "example.test");
 });
 
-test("tách đúng card All Made Viet và loại slogan khỏi họ tên", () => {
+test("tách đúng card doanh nghiệp giả lập và loại slogan khỏi họ tên", () => {
   const parsed = ocr.parseBusinessCardText([
-    "All Made",
-    "Connecting Buyers and Sellers Globally",
-    "Liney Weishappel",
+    "Example Made LLC",
+    "Generated business fixture for testing",
+    "Alex Tester",
     "CEO Co Founder",
-    "Phone/Zalo/WhatsApp +84 707849598",
-    "Email hello@allmadeviet.com",
-    "www.allmadeviet.com  www.allmadevietfood.com"
+    "Phone +84 900000002",
+    "Email hello@example.test",
+    "www.example.test  catalog.example.test"
   ].join("\n"));
-  assert.equal(parsed.name, "Liney Weishappel");
+  assert.equal(parsed.name, "Alex Tester");
   assert.equal(parsed.role, "CEO Co Founder");
-  assert.equal(parsed.company, "All Made Viet");
-  assert.equal(parsed.phone.replace(/\D/g, ""), "84707849598");
-  assert.equal(parsed.email, "hello@allmadeviet.com");
-  assert.equal(parsed.website, "allmadeviet.com");
+  assert.equal(parsed.company, "Example Made LLC");
+  assert.equal(parsed.phone.replace(/\D/g, ""), "84900000002");
+  assert.equal(parsed.email, "hello@example.test");
+  assert.equal(parsed.website, "example.test");
 });

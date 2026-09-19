@@ -2,6 +2,7 @@
   "appId": "vn.memento.namecard",
   "appName": "BCard",
   "webDir": "www",
+  "includePlugins": ["capacitor-token-vault"],
   "backgroundColor": "#F3F6FF",
   "server": {
     "androidScheme": "https"

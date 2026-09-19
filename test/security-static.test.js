@@ -16,6 +16,47 @@ test("migrations enforce RLS, owner composite foreign keys and private storage",
   assert.match(read("supabase/tests/database/rls_isolation.test.sql"), /owner B cannot read owner A contact/);
 });
 
+test("hardening migration separates operator roles and blocks direct private DML", () => {
+  const sql = read("supabase/migrations/202609200005_staging_hardening.sql");
+  assert.match(sql, /operator_roles[\s\S]*PRIVACY_COMPLIANCE/);
+  assert.match(sql, /locate_privacy_case_candidates[\s\S]*VERIFIED_CASE_REQUIRED/);
+  assert.match(sql, /revoke insert,update,delete on table public\.%I from anon,authenticated/i);
+  assert.match(sql, /grant execute on function public\.sync_object[\s\S]*to authenticated/i);
+  assert.match(sql, /AUDITOR'[\s\S]*delete from public\.account_roles|delete from public\.account_roles where role = 'AUDITOR'/i);
+  assert.match(read("supabase/migrations/202609200001_bcard_core.sql"), /namecard_images_select[\s\S]*auth\.uid/i);
+});
+
+test("server lifecycle and conflict protocol never insert a missing DELETE row", () => {
+  const sql = read("supabase/migrations/202609200005_staging_hardening.sql");
+  assert.match(sql, /if v_current=0 then[\s\S]*'status','ABSENT'/i);
+  assert.match(sql, /SYNC_CONFLICT/);
+  assert.doesNotMatch(sql, /raise exception[^;]*STALE_VERSION/i);
+  assert.match(sql, /reconcile_sync_operation/);
+});
+
+test("server normalization, stable provenance and atomic research quota are present", () => {
+  const sql = read("supabase/migrations/202609200005_staging_hardening.sql");
+  assert.match(sql, /normalize_contact_method/);
+  assert.match(sql, /contact_method_active_normalized/);
+  assert.match(sql, /source_object_id/); assert.match(sql, /target_value_id/);
+  assert.match(sql, /consume_research_quota[\s\S]*on conflict\(owner_id,bucket\) do update/i);
+  assert.match(sql, /pg_advisory_xact_lock[\s\S]*hashtextextended/i);
+});
+
+test("Company Research is bound to the existing TenantCompany and filters personal contacts", () => {
+  const research = read("supabase/functions/company-research/index.ts");
+  const shared = read("supabase/functions/_shared/security.ts");
+  assert.match(research, /TENANT_COMPANY_REQUIRED/); assert.match(research, /TENANT_COMPANY_NOT_FOUND/);
+  assert.doesNotMatch(research, /tenant_companies"\)\.upsert/);
+  assert.match(research, /public_company_contacts/); assert.match(shared, /PERSONAL_CONTACT_REJECTED/);
+  assert.match(research, /consume_research_quota/);
+});
+
+test("CI runs current web and database suites without production credentials", () => {
+  const workflow = read(".github/workflows/ci.yml");
+  for (const command of ["npm ci", "npm test", "npm run check", "npm run build", "npm run test:visual", "supabase db reset", "supabase test db"]) assert.match(workflow, new RegExp(command.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+});
+
 test("service worker never caches private API, auth or storage responses", () => {
   const source = read("sw.js");
   assert.match(source, /request\.headers\.has\("authorization"\)/);

@@ -2,11 +2,15 @@
 
 ## Ownership and data flow
 
-The browser uses the public Supabase anon key only. Supabase Auth identifies the user; PostgreSQL RLS and private Storage policies enforce the account boundary. UI code writes through `lib/repository.js` to an owner-scoped IndexedDB snapshot, object cache, image store and pending queue. `lib/sync.js` sends operations in dependency order and the `sync_object` RPC validates the authenticated owner, idempotency key and expected version. A stale write becomes `CONFLICT`; it is never applied as last-write-wins.
+The browser uses the public Supabase anon key only. Supabase Auth identifies the user; PostgreSQL RLS and private Storage policies enforce the account boundary. UI code writes through `lib/repository.js` to an owner-scoped IndexedDB snapshot, object cache, image store and pending queue. `lib/sync.js` sends operations in dependency order and the `sync_object` RPC validates the authenticated owner, idempotency key and expected version. Authenticated clients have read access where required but cannot use direct table DML to bypass the RPC. A stale write returns a durable `CONFLICT` response and leaves both the object and conflict audit evidence intact.
 
-Card images use `namecard-images/<auth.uid()>/<card-id>/<image-id>-<checksum>.<ext>`. The bucket is private. The local Blob is committed with the card before `LOCAL_ACCEPTED`; upload status and database ACK remain separate. Delete/restrict operations supersede pending uploads, remove private Storage content, retain a metadata tombstone and do not alter acceptance history.
+Card images use `namecard-images/<auth.uid()>/<card-id>/<image-id>-<checksum>.<ext>`. The bucket is private and owner-only in this staging scope. The local Blob is committed with the card before `LOCAL_ACCEPTED`; upload status and database ACK remain separate. Queue records distinguish never dispatched, possibly received, and acknowledged content. A delete atomically supersedes older content, minimizes queued payloads and purges local blobs. Never-dispatched objects create no server row; possibly received objects reconcile by idempotency metadata and then propagate deletion.
 
-Company Research receives only company name, official website/business domain and optional address. The browser never sends card images, notes, phone numbers or encounter history. Edge Functions validate the JWT, block unsafe URLs, enforce rate/size/time limits, coalesce concurrent jobs, cache by normalized domain, call the configured model with a strict JSON schema, validate the result, and store facts plus source mappings per owner.
+Company Research receives an existing tenant company ID, company name, official website/business domain and optional address. Full personal email mailboxes, card images, notes, phone numbers and encounter history are excluded. Edge Functions verify that the tenant company belongs to the authenticated owner, block unsafe URLs, consume atomic resolver/research quota buckets, coalesce jobs and cache per tenant company/domain. Public contacts use a structured schema and deterministic validation that rejects named-person email, direct mobile and personal labels.
+
+## Session storage policy
+
+Capacitor native builds use `capacitor-token-vault@0.1.1`: refresh tokens are stored in iOS Keychain or Android Keystore-backed storage, while access tokens remain in memory. Native startup fails with `NATIVE_SECURE_STORAGE_REQUIRED` when the plugin is missing; there is no plaintext fallback. Browser/PWA sessions are memory-only and require sign-in after a page lifecycle ends. IndexedDB stores account data and pending operations but no refresh token. Logout and account switch clear the secure slot before the old account can be restored.
 
 ## Local web
 
@@ -28,7 +32,7 @@ Install the Supabase CLI, link a test project, then apply migrations in order:
 ```powershell
 supabase link --project-ref PROJECT_REF
 supabase db push
-supabase secrets set OPENAI_API_KEY=... COMPANY_RESEARCH_MODEL=gpt-5-mini RESEARCH_RATE_LIMIT_PER_HOUR=10 RESEARCH_CACHE_DAYS=30
+supabase secrets set OPENAI_API_KEY=... COMPANY_RESEARCH_MODEL=gpt-5-mini RESEARCH_RATE_LIMIT_PER_HOUR=10 RESOLVER_RATE_LIMIT_PER_HOUR=10 RESEARCH_CACHE_DAYS=30
 supabase functions deploy company-resolver
 supabase functions deploy company-research
 ```
@@ -37,18 +41,22 @@ For a local Supabase stack use `supabase start` and `supabase db reset`. A rollb
 
 ## RLS verification
 
-Create two isolated test users A and B. With each user's access token, insert one contact and upload one image beneath that user's UUID. Verify A can select/update/export/download A and receives no rows or a policy error for B; repeat in reverse. Verify a composite foreign key rejects linking A's method/card/relationship to B's contact. Run a stale `sync_object` request with `p_expected_version` below the current version and verify `STALE_VERSION`, then repeat the same successful idempotency key and verify one row/one ACK. The static security tests run with `npm test`; live RLS tests require a configured Supabase project and two test credentials.
+Use `supabase db reset && supabase test db` to create isolated fake users A and B. The pgTAP suite proves owner reads, cross-owner denial, Storage metadata isolation, direct DML denial, approved RPC writes, composite-owner foreign keys, durable conflict evidence, delete-absent behavior and server normalization. A stale `sync_object` call returns `{status:"CONFLICT"}` instead of raising a transaction-aborting exception. No production credential is required for this local suite.
+
+## Controlled DSR workflow
+
+The account-facing `data_requests` object records a signed-in user's request. A separate service-side workflow handles non-user data subjects through `privacy_cases`, `privacy_case_matches`, `privacy_case_actions`, `operator_roles` and `operator_audit_log`. Candidate lookup requires `VERIFIED` identity status, approved hashed email/phone criteria, an active `PRIVACY_COMPLIANCE` operator and a case-scoped reason. Candidates require manual review and are not disclosed directly to ordinary users or support roles. Follow [DSR_OPERATOR_RUNBOOK.md](DSR_OPERATOR_RUNBOOK.md); retention and response decisions remain subject to the external legal gate.
 
 ## Deployment checklist
 
 1. Apply migrations and deploy both Edge Functions.
 2. Configure public build variables and Edge Function secrets separately.
 3. Run `npm test`, `npm run check`, `npm run build`, `npm run test:ocr`, `npm run test:visual`, and `npm run mobile:sync`.
-4. Verify sign-up/sign-in, two-account isolation, offline restart, retry/idempotency, stale conflict, private image upload/download/delete, export and research against the target project.
+4. Verify sign-up/sign-in, native secure-token restore, two-account isolation, offline restart, delete-before-sync, retry/idempotency, stale conflict, private image upload/download/delete, export, DSR operator workflow and research against the target project using fake data.
 5. Review retention, privacy disclosure, threat model, backup/restore, incident ownership and store requirements before real-card pilot.
 
 ## Retention and limitations
 
-Research cache TTL defaults to 30 days and is centrally configurable. Data requests are durable objects with audit records; operational handling and response deadlines still require the approved legal process. `purge_expired_research` is server-only and must be scheduled only after retention approval. Signed URLs are limited to 15 minutes and are never placed in exports or the service-worker cache.
+Research cache TTL defaults to 30 days and is centrally configurable. Provenance retains stable source/target IDs and hashes rather than historical raw values; its final retention period remains configurable pending legal approval. DSR cases have explicit retention deadlines. `purge_expired_research` is server-only and must be scheduled only after retention approval. Signed URLs are limited to 15 minutes and are never placed in exports or the service-worker cache.
 
-External gates remain: legal/privacy and data-map approval, threat-model/security review, backup/restore exercise, Android/iOS device validation, incident/support ownership, and live Supabase/OpenAI end-to-end evidence.
+Passing engineering tests means the repository is ready for controlled staging validation with fake data. External gates remain: legal/privacy and data-map approval, threat-model/security review, backup/restore exercise, Android/iOS device validation, incident/support ownership, and live Supabase/OpenAI end-to-end evidence. It is not evidence of production readiness, store approval, compliance, or readiness for real-card pilot data.

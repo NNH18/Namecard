@@ -52,7 +52,9 @@ function recognizeSyntheticCard(page) {
     await page.context().setOffline(true);
     const offlineResult = await recognizeSyntheticCard(page);
     assert(offlineResult.email === "anh.tran@nova.vn", `OCR offline thất bại: ${offlineResult.email}`);
-    fs.writeFileSync(path.join(process.cwd(), "BCard_OCR_Runtime_Evidence_v1.1.0.json"), JSON.stringify({ result, offlineResult, browserErrors }, null, 2));
+    const outputDir = process.env.BCARD_OCR_OUTPUT || path.join(process.cwd(), "test-results", "ocr");
+    fs.mkdirSync(outputDir, { recursive: true });
+    fs.writeFileSync(path.join(outputDir, "runtime-evidence.json"), JSON.stringify({ result, offlineResult, browserErrors }, null, 2));
     console.log(`OCR runtime PASS: vie+eng, confidence ${result.confidence}%, online/offline nhận đúng, CSP/worker/WASM sạch.`);
   } finally {
     await browser.close();

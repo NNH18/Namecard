@@ -6,6 +6,8 @@
 
 Bản triển khai gồm core danh bạ/OCR/offline và **Company Research tự động**: sau khi contact đủ điều kiện được lưu, hệ thống enqueue resolver và server-side research; kết quả có nguồn, cache/TTL, trạng thái UI và manual refresh. Hướng dẫn môi trường, migrations, RLS và triển khai nằm trong `docs/PRODUCTION.md`.
 
+Hardening hiện tại bổ sung queue supersession nguyên tử, reconciliation theo idempotency, native secure token storage, stable provenance, direct-DML lockdown, DSR operator workflow, server normalization và tenant-bound Company Research. Đây là trạng thái kỹ thuật dành cho controlled staging bằng dữ liệu giả; các external gate trong `docs/PRODUCTION.md` vẫn độc lập.
+
 ## Chạy ứng dụng
 
 ```powershell
@@ -55,3 +57,5 @@ Theo yêu cầu bàn giao hiện tại, không tạo APK/AAB. Web assets nằm �
 - Xuất dữ liệu đúng account dạng JSON, tạo yêu cầu quyền dữ liệu bền và xóa cache đã đồng bộ mà không xóa pending queue.
 
 Khi thiếu `SUPABASE_URL`/`SUPABASE_ANON_KEY`, ứng dụng chạy ở chế độ phát triển cục bộ và không giả báo sync/research thành công. Trước pilot dữ liệu thật vẫn phải hoàn tất legal/privacy, threat model, backup/restore, kiểm thử thiết bị và incident ownership; xem [docs/PRODUCTION.md](docs/PRODUCTION.md).
+
+Source chuẩn nằm ở thư mục gốc (`app.js`, `logic.js`, `ocr.js`, `lib/`, `supabase/`, `test/`). `www/` và assets native được tạo bằng build/sync; các ZIP và source snapshot trùng lặp không thuộc source chuẩn.

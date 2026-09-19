@@ -60,3 +60,31 @@ export function validateCandidate(input: unknown) {
   if (new URL(website).hostname.replace(/^www\./, "") !== domain) throw new Error("DOMAIN_MISMATCH");
   return { company_name, domain, website };
 }
+
+const CONTACT_CATEGORIES = new Set(["HOTLINE", "SALES", "SUPPORT", "GENERIC_EMAIL", "OFFICE"]);
+const GENERIC_MAILBOXES = new Set(["info", "hello", "contact", "sales", "support", "help", "office", "admin", "customer", "customerservice", "service"]);
+const PERSONAL_LABEL = /\b(?:ceo|founder|director|manager|mr|mrs|ms|dr|mobile|personal|zalo|whatsapp)\b/i;
+
+export type PublicCompanyContact = { category: "HOTLINE"|"SALES"|"SUPPORT"|"GENERIC_EMAIL"|"OFFICE"; value: string; label: string; source_url: string };
+
+export function validatePublicCompanyContacts(value: unknown, companyDomain: string, defaultSourceUrl: string): PublicCompanyContact[] {
+  if (!Array.isArray(value) || value.length > 20) throw new Error("PUBLIC_CONTACT_SCHEMA_INVALID");
+  return value.map(raw => {
+    if (!raw || typeof raw !== "object") throw new Error("PUBLIC_CONTACT_SCHEMA_INVALID");
+    const item = raw as Record<string, unknown>;
+    const category = String(item.category || "").toUpperCase();
+    const contactValue = String(item.value || "").trim().slice(0, 320);
+    const label = String(item.label || "").trim().slice(0, 160);
+    const source_url = safePublicUrl(String(item.source_url || defaultSourceUrl)).toString();
+    if (!CONTACT_CATEGORIES.has(category) || !contactValue || !label || PERSONAL_LABEL.test(label)) throw new Error("PERSONAL_CONTACT_REJECTED");
+    if (contactValue.includes("@")) {
+      if (category !== "GENERIC_EMAIL" && category !== "SALES" && category !== "SUPPORT") throw new Error("PUBLIC_CONTACT_CATEGORY_INVALID");
+      const parts = contactValue.toLowerCase().split("@");
+      const mailbox = parts[0]?.replace(/[^a-z0-9]/g, ""); const domain = parts[1]?.replace(/^www\./, "");
+      if (!GENERIC_MAILBOXES.has(mailbox) || domain !== companyDomain) throw new Error("PERSONAL_CONTACT_REJECTED");
+    } else {
+      if (category === "GENERIC_EMAIL" || !/^\+?[0-9][0-9\s().-]{6,20}$/.test(contactValue)) throw new Error("PUBLIC_CONTACT_SCHEMA_INVALID");
+    }
+    return { category: category as PublicCompanyContact["category"], value: contactValue, label, source_url };
+  });
+}
