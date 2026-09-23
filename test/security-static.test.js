@@ -74,6 +74,16 @@ test("CI runs current web and database suites without production credentials", (
   assert.match(workflow, /version:\s+2\.117\.0/);
 });
 
+test("GitHub Pages publishes the generated web bundle with pinned actions", () => {
+  const workflow = read(".github/workflows/pages.yml");
+  assert.match(workflow, /npm ci/);
+  assert.match(workflow, /npm run build/);
+  assert.match(workflow, /path:\s+www/);
+  assert.match(workflow, /pages:\s+write/);
+  assert.match(workflow, /id-token:\s+write/);
+  assert.doesNotMatch(workflow, /uses:\s+[^\s]+@v\d+/);
+});
+
 test("service worker never caches private API, auth or storage responses", () => {
   const source = read("sw.js");
   assert.match(source, /request\.headers\.has\("authorization"\)/);
