@@ -4,7 +4,7 @@ Status: **Engineering hardening completed. Ready for controlled staging validati
 
 ## Research correctness follow-up
 
-The current follow-up removes heuristic domain acceptance from the identity boundary. Draft/unconfirmed contacts are blocked on both client and server; resolver states are `UNRESOLVED`, `CANDIDATE`, `USER_CONFIRMED` and `SERVER_VERIFIED`; research loads the stored server resolution/version and rejects stale identities. Important facts and public company contacts require bounded excerpts from the exact fetched source. The user interface shows evidence coverage and verification state instead of an uncalibrated probability. Final commit-bound evidence is recorded in `docs/TEST_EVIDENCE.md` after CI completes for the merged main SHA.
+The current follow-up removes heuristic domain acceptance from the identity boundary. Draft/unconfirmed contacts are blocked on both client and server; resolver states are `UNRESOLVED`, `CANDIDATE`, `USER_CONFIRMED` and `SERVER_VERIFIED`; research loads the stored server resolution/version and rejects stale identities. Every accepted claim and public company contact requires its own bounded excerpt from the exact fetched source. Research metadata, claims, sources and evidence commit atomically before the cache becomes `COMPLETED`. The user interface shows evidence coverage, derivation type and verification state instead of an uncalibrated probability. Final commit-bound evidence is recorded in `docs/TEST_EVIDENCE.md` after CI completes for the merged main SHA.
 
 ## Files changed
 
@@ -13,6 +13,7 @@ The current follow-up removes heuristic domain acceptance from the identity boun
 | Local durability and sync | `lib/local-db.js`, `lib/repository.js`, `lib/sync.js`, `lib/production.js`, `app.js` | Atomic lifecycle supersession, PII minimization, remote-visibility evidence, reconciliation, conflict/backlog handling and separated delete propagation UI |
 | Session security | `lib/session-store.js`, `lib/auth.js`, `capacitor.config.json`, native Capacitor plugin registration, `package*.json` | Memory-only browser sessions and Keychain/Keystore-backed native refresh-token storage with fail-closed behavior |
 | Research | `lib/company-research.js`, `supabase/functions/company-*`, `supabase/functions/_shared/security.ts` | Existing TenantCompany identity, minimized inputs, public-company-contact validation, atomic quotas and automatic post-sync trigger |
+| Atomic claim evidence | `supabase/functions/_shared/research-contract.mjs`, `202609230002_atomic_research_claims.sql` | One evidence binding per claim and transaction-safe research bundle replacement |
 | Database security | `supabase/migrations/202609200005_staging_hardening.sql` | Forward-only RLS/privilege, normalization, provenance, DSR, quota, lifecycle and conflict hardening |
 | Verification | `test/*.test.js`, `supabase/tests/database/rls_isolation.test.sql`, `.github/workflows/ci.yml` | Regression, privacy/security acceptance tests and reproducible web/database CI |
 | Operations/docs | `docs/*`, `README.md`, `TONG_QUAN_PROJECT_VA_PRODUCTION.md`, `.gitignore` | Current staging boundary, operator workflow, evidence and canonical-source guidance |
@@ -34,6 +35,8 @@ The current follow-up removes heuristic domain acceptance from the identity boun
 - **FIX-08:** ContactMethod normalization and active uniqueness are authoritative on the server for email and Vietnam phone formats.
 - **FIX-09:** stale writes return and persist `CONFLICT`; object data remains unchanged and the client keeps a resolvable conflict state.
 - **FIX-10:** current test suites run in CI; stale/PII-bearing evidence and duplicate packaged source trees were removed; documentation now reflects the implemented staging code.
+- **FIX-11:** unsupported sibling claims can no longer share one field-level excerpt; every accepted claim has its own evidence and derivation type.
+- **FIX-12:** research rows can no longer remain `COMPLETED` after partial child writes; the full bundle commits or rolls back as one transaction.
 
 ## External gates
 

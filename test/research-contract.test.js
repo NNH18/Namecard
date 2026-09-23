@@ -36,12 +36,13 @@ test("unsupported model facts are dropped while exact excerpts remain auditable"
   const pageUrl = "https://example.com/";
   const pageText = "Example builds accounting software for small businesses. Contact sales@example.com for sales.";
   const result = validateEvidenceBackedResearch({
-    summary: "Example builds accounting software.", industry: ["Software"], products_services: ["Accounting"], target_customers: ["Enterprise banks"], markets: ["Mars"], headquarters: "Paris", company_size: "10,000",
     public_company_contacts: [], model_assessment: "HIGH",
-    fact_evidence: [
-      { fact_key: "summary", source_url: pageUrl, excerpt: "Example builds accounting software" },
-      { fact_key: "industry", source_url: pageUrl, excerpt: "accounting software" },
-      { fact_key: "products_services", source_url: pageUrl, excerpt: "accounting software" }
+    claims: [
+      { fact_key: "summary", value: "Example builds accounting software.", source_url: pageUrl, excerpt: "Example builds accounting software" },
+      { fact_key: "industry", value: "Software", source_url: pageUrl, excerpt: "accounting software" },
+      { fact_key: "products_services", value: "Accounting", source_url: pageUrl, excerpt: "accounting software" },
+      { fact_key: "target_customers", value: "Enterprise banks", source_url: pageUrl, excerpt: "evidence absent from page" },
+      { fact_key: "markets", value: "Mars", source_url: "https://unrelated.example/", excerpt: "Example builds accounting software" }
     ]
   }, { companyName: "Example", website: pageUrl, domain: "example.com", pageUrl, pageText, retrievedAt: "2026-09-23T00:00:00Z" });
   assert.equal(result.summary, "Example builds accounting software.");
@@ -51,13 +52,31 @@ test("unsupported model facts are dropped while exact excerpts remain auditable"
   assert.equal(result.headquarters, null);
   assert.equal(result.model_assessment, "HIGH");
   assert.ok(result.evidence.every(item => item.excerpt.length <= 500));
+  assert.equal(result.claims.length, 3);
+  assert.equal(result.claims.find(item => item.fact_key === "industry").derivation_type, "EXTRACTED");
+});
+
+test("each array claim needs its own source excerpt", async () => {
+  const { validateEvidenceBackedResearch } = await contract();
+  const pageUrl = "https://example.com/";
+  const result = validateEvidenceBackedResearch({
+    company_name: "Example",
+    claims: [
+      { fact_key: "industry", value: "Software", source_url: pageUrl, excerpt: "Example is a software company" },
+      { fact_key: "industry", value: "Nuclear energy", source_url: pageUrl, excerpt: "Nuclear energy is not on this page" }
+    ],
+    public_company_contacts: [], model_assessment: "HIGH"
+  }, { companyName: "Example", website: pageUrl, domain: "example.com", pageUrl, pageText: "Example is a software company.", retrievedAt: "2026-09-23T00:00:00Z" });
+  assert.deepEqual(result.industry, ["Software"]);
+  assert.equal(result.claims.length, 1);
+  assert.equal(result.evidence[0].claim_id, result.claims[0].claim_id);
 });
 
 test("hallucinated generic mailbox and unrelated source URL are rejected", async () => {
   const { validateEvidenceBackedResearch } = await contract();
   const pageUrl = "https://example.com/contact";
   const base = {
-    summary: "", industry: [], products_services: [], target_customers: [], markets: [], headquarters: null, company_size: null, model_assessment: "MEDIUM", fact_evidence: []
+    company_name: "Example", claims: [], model_assessment: "MEDIUM"
   };
   const absent = validateEvidenceBackedResearch({ ...base, public_company_contacts: [{ category: "SALES", value: "sales@example.com", label: "Sales", source_url: pageUrl, evidence_excerpt: "Contact our team today" }] }, { companyName: "Example", website: "https://example.com", domain: "example.com", pageUrl, pageText: "Contact our team today", retrievedAt: "2026-09-23T00:00:00Z" });
   assert.deepEqual(absent.public_company_contacts, []);

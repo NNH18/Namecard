@@ -29,7 +29,7 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run check
-      - run: deno check supabase/functions/company-resolver/index.ts supabase/functions/company-research/index.ts
+      - run: deno check --frozen --lock=deno.lock supabase/functions/company-resolver/index.ts supabase/functions/company-research/index.ts
       - run: npm run build
       - name: Browser runtime smoke
         shell: bash

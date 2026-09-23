@@ -21,22 +21,27 @@ async function assertConfirmedContact(admin: any, ownerId: string, contactId: st
 }
 
 async function loadCachedResult(admin: any, ownerId: string, research: any, identity: any) {
-  const { data: facts } = await admin.from("company_facts").select("id,fact_key,fact_value,verification_status").eq("owner_id", ownerId).eq("research_id", research.id).eq("verification_status", "SUPPORTED");
+  const { data: facts } = await admin.from("company_facts").select("id,fact_key,fact_value,derivation_type,verification_status").eq("owner_id", ownerId).eq("research_id", research.id).eq("verification_status", "SUPPORTED");
   const { data: sources } = await admin.from("research_sources").select("id,url,title,retrieved_at,fact_keys").eq("owner_id", ownerId).eq("research_id", research.id);
   const { data: evidence } = await admin.from("research_fact_evidence").select("fact_id,source_id,excerpt,retrieved_at,verification_status").eq("owner_id", ownerId).eq("research_id", research.id).eq("verification_status", "SUPPORTED");
-  const mapped = Object.fromEntries((facts || []).map((item: any) => [item.fact_key, item.fact_value]));
-  const factKeyById = new Map((facts || []).map((item: any) => [item.id, item.fact_key]));
-  const sourceById = new Map((sources || []).map((item: any) => [item.id, item.url]));
-  const evidenceRows = (evidence || []).map((item: any) => ({ fact_key: factKeyById.get(item.fact_id), source_url: sourceById.get(item.source_id), excerpt: item.excerpt, retrieved_at: item.retrieved_at })).filter((item: any) => item.fact_key && item.source_url);
-  const presentCount = RESEARCH_FACT_KEYS.filter((key: string) => key === "summary" ? Boolean(research.summary) : Array.isArray(mapped[key]) ? mapped[key].length : Boolean(mapped[key])).length;
+  const factById = new Map<string, any>((facts || []).map((item: any) => [item.id, item]));
+  const sourceById = new Map<string, string>((sources || []).map((item: any) => [item.id, item.url]));
+  const evidenceRows = (evidence || []).map((item: any) => {
+    const fact = factById.get(item.fact_id);
+    return { claim_id: item.fact_id, fact_key: fact?.fact_key, source_url: sourceById.get(item.source_id), excerpt: item.excerpt, retrieved_at: item.retrieved_at, derivation_type: fact?.derivation_type || "INFERRED", verification_status: item.verification_status };
+  }).filter((item: any) => item.fact_key && item.source_url);
+  const valuesFor = (key: string) => (facts || []).filter((item: any) => item.fact_key === key).map((item: any) => item.fact_value);
+  const firstFor = (key: string) => valuesFor(key)[0] ?? null;
+  const supportedFactIds = new Set(evidenceRows.map((item: any) => item.claim_id));
+  const presentCount = (facts || []).length;
   return {
     company_name: identity.company_name,
     official_website: identity.website,
-    summary: research.summary || "",
-    industry: mapped.industry || [], products_services: mapped.products_services || [], target_customers: mapped.target_customers || [], markets: mapped.markets || [],
-    headquarters: mapped.headquarters || null, company_size: mapped.company_size || null, public_company_contacts: mapped.public_company_contacts || [],
-    verification_status: evidenceRows.length && evidenceRows.length >= presentCount ? "SUPPORTED" : evidenceRows.length ? "PARTIAL" : "UNVERIFIED",
-    evidence_coverage: presentCount ? Math.min(100, Math.round((new Set(evidenceRows.map((item: any) => item.fact_key)).size / presentCount) * 100)) : 0,
+    summary: firstFor("summary") || research.summary || "",
+    industry: valuesFor("industry"), products_services: valuesFor("products_services"), target_customers: valuesFor("target_customers"), markets: valuesFor("markets"),
+    headquarters: firstFor("headquarters"), company_size: firstFor("company_size"), public_company_contacts: valuesFor("public_company_contacts"),
+    verification_status: supportedFactIds.size && supportedFactIds.size >= presentCount ? "SUPPORTED" : supportedFactIds.size ? "PARTIAL" : "UNVERIFIED",
+    evidence_coverage: presentCount ? Math.min(100, Math.round((supportedFactIds.size / presentCount) * 100)) : 0,
     researched_at: research.updated_at,
     evidence: evidenceRows,
     sources: (sources || []).map((source: any) => ({ url: source.url, title: source.title, retrieved_at: source.retrieved_at, fact_keys: source.fact_keys || [] })),
@@ -93,16 +98,16 @@ Deno.serve(async request => {
     const apiKey = Deno.env.get("OPENAI_API_KEY");
     if (!apiKey) throw new Error("RESEARCH_PROVIDER_NOT_CONFIGURED");
     const model = Deno.env.get("COMPANY_RESEARCH_MODEL") || Deno.env.get("OPENAI_RESEARCH_MODEL") || "gpt-5-mini";
-    const prompt = `Extract only facts directly supported by the supplied official page. Every non-empty fact requires an exact short excerpt copied from this page and the exact supplied URL. Omit unsupported facts. Generic company contacts must appear verbatim in the excerpt; never return a named person's email/direct phone/mobile/Zalo/WhatsApp. Company: ${identity.company_name}\nOfficial URL: ${page.url}\nWebsite text:\n${pageText}`;
+    const prompt = `Extract only facts directly supported by the supplied official page. Return one claim for each individual value, including each list item. Every claim requires an exact short excerpt copied from this page and the exact supplied URL. Never group supported and unsupported values under one excerpt. Omit unsupported claims. Generic company contacts must appear verbatim in the excerpt; never return a named person's email/direct phone/mobile/Zalo/WhatsApp. Company: ${identity.company_name}\nOfficial URL: ${page.url}\nWebsite text:\n${pageText}`;
     const modelResponse = await fetch("https://api.openai.com/v1/responses", {
       method: "POST", headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
       body: JSON.stringify({ model, input: prompt, text: { format: { type: "json_schema", name: "company_research", strict: true, schema: {
         type: "object", additionalProperties: false,
-        required: ["company_name", "summary", "industry", "products_services", "target_customers", "markets", "headquarters", "company_size", "public_company_contacts", "fact_evidence", "model_assessment"],
+        required: ["company_name", "claims", "public_company_contacts", "model_assessment"],
         properties: {
-          company_name: { type: "string" }, summary: { type: "string" }, industry: { type: "array", items: { type: "string" } }, products_services: { type: "array", items: { type: "string" } }, target_customers: { type: "array", items: { type: "string" } }, markets: { type: "array", items: { type: "string" } }, headquarters: { type: ["string", "null"] }, company_size: { type: ["string", "null"] },
+          company_name: { type: "string" },
+          claims: { type: "array", maxItems: 80, items: { type: "object", additionalProperties: false, required: ["fact_key", "value", "source_url", "excerpt"], properties: { fact_key: { type: "string", enum: RESEARCH_FACT_KEYS.filter((key: string) => key !== "public_company_contacts") }, value: { type: "string", maxLength: 4000 }, source_url: { type: "string" }, excerpt: { type: "string", maxLength: 500 } } } },
           public_company_contacts: { type: "array", maxItems: 20, items: { type: "object", additionalProperties: false, required: ["category", "value", "label", "source_url", "evidence_excerpt"], properties: { category: { type: "string", enum: ["HOTLINE", "SALES", "SUPPORT", "GENERIC_EMAIL", "OFFICE"] }, value: { type: "string" }, label: { type: "string" }, source_url: { type: "string" }, evidence_excerpt: { type: "string", maxLength: 500 } } } },
-          fact_evidence: { type: "array", maxItems: 80, items: { type: "object", additionalProperties: false, required: ["fact_key", "source_url", "excerpt"], properties: { fact_key: { type: "string", enum: RESEARCH_FACT_KEYS }, source_url: { type: "string" }, excerpt: { type: "string", maxLength: 500 } } } },
           model_assessment: { type: "string", enum: ["LOW", "MEDIUM", "HIGH"] }
         }
       } } } })
@@ -114,24 +119,23 @@ Deno.serve(async request => {
     if (!result.evidence.length) throw new Error("NO_SUPPORTED_FACTS");
     const researchId = crypto.randomUUID();
     const expiresAt = new Date(now.getTime() + CACHE_DAYS * 86400000).toISOString();
-    await admin.from("company_research").upsert({ owner_id: user.id, id: researchId, company_id: tenantCompanyId, domain: identity.domain, status: "COMPLETED", summary: result.summary, confidence: null, cache_key: cacheKey, expires_at: expiresAt, resolution_id: identity.id, identity_version: identity.identity_version, identity_status: identity.status }, { onConflict: "owner_id,cache_key" });
-    const { data: saved } = await admin.from("company_research").select("id").eq("owner_id", user.id).eq("cache_key", cacheKey).single();
-    const savedId = saved!.id;
-    await admin.from("research_fact_evidence").delete().eq("owner_id", user.id).eq("research_id", savedId);
-    await admin.from("company_facts").delete().eq("owner_id", user.id).eq("research_id", savedId);
-    await admin.from("research_sources").delete().eq("owner_id", user.id).eq("research_id", savedId);
     const sourceId = crypto.randomUUID();
-    const supportedKeys: string[] = [...new Set<string>(result.evidence.map((item: any) => String(item.fact_key)))];
-    await admin.from("research_sources").insert({ owner_id: user.id, id: sourceId, research_id: savedId, url: page.url, title: identity.company_name, retrieved_at: now.toISOString(), fact_keys: supportedKeys });
-    const values: Record<string, unknown> = { summary: result.summary, industry: result.industry, products_services: result.products_services, target_customers: result.target_customers, markets: result.markets, headquarters: result.headquarters, company_size: result.company_size, public_company_contacts: result.public_company_contacts };
-    const factRows = supportedKeys.filter((key: string) => key !== "summary" || result.summary).map((key: string) => ({ owner_id: user.id, id: crypto.randomUUID(), research_id: savedId, fact_key: key, fact_value: values[key], confidence: null, verification_status: "SUPPORTED" }));
-    const { data: insertedFacts, error: factsError } = await admin.from("company_facts").insert(factRows).select("id,fact_key");
-    if (factsError) throw new Error("FACT_SAVE_FAILED");
-    const factIdByKey = new Map((insertedFacts || []).map((item: any) => [item.fact_key, item.id]));
-    const evidenceRows = result.evidence.filter((item: any) => factIdByKey.has(item.fact_key)).map((item: any) => ({ owner_id: user.id, id: crypto.randomUUID(), research_id: savedId, fact_id: factIdByKey.get(item.fact_key), source_id: sourceId, excerpt: item.excerpt, content_hash: contentHash, retrieved_at: item.retrieved_at, verification_status: "SUPPORTED" }));
-    if (evidenceRows.length) await admin.from("research_fact_evidence").insert(evidenceRows);
-    await admin.from("audit_log").insert({ owner_id: user.id, actor_id: user.id, action: force ? "RESEARCH_REFRESH" : "RESEARCH_CREATE", object_type: "company_research", object_id: savedId, metadata: { domain: identity.domain, identity_version: identity.identity_version, supported_fact_count: supportedKeys.length } });
-    await admin.from("research_jobs").update({ status: "COMPLETED", lease_until: now.toISOString(), updated_at: new Date().toISOString() }).eq("owner_id", user.id).eq("cache_key", cacheKey);
+    const factIdByClaim = new Map<string, string>();
+    const factRows = result.claims.map((claim: any) => {
+      const id = crypto.randomUUID();
+      factIdByClaim.set(claim.claim_id, id);
+      return { id, fact_key: claim.fact_key, fact_value: claim.value, derivation_type: claim.derivation_type, verification_status: claim.verification_status };
+    });
+    const evidenceRows = result.evidence.map((item: any) => ({ id: crypto.randomUUID(), fact_id: factIdByClaim.get(item.claim_id), source_id: sourceId, excerpt: item.excerpt, content_hash: contentHash, retrieved_at: item.retrieved_at, verification_status: item.verification_status }));
+    const supportedKeys: string[] = [...new Set<string>(result.claims.map((item: any) => String(item.fact_key)))];
+    const { data: savedId, error: persistError } = await admin.rpc("persist_company_research_bundle", {
+      p_owner_id: user.id,
+      p_research: { id: researchId, company_id: tenantCompanyId, domain: identity.domain, summary: result.summary, cache_key: cacheKey, expires_at: expiresAt, resolution_id: identity.id, identity_version: identity.identity_version, identity_status: identity.status, action: force ? "RESEARCH_REFRESH" : "RESEARCH_CREATE" },
+      p_sources: [{ id: sourceId, url: page.url, title: identity.company_name, retrieved_at: now.toISOString(), fact_keys: supportedKeys }],
+      p_facts: factRows,
+      p_evidence: evidenceRows
+    });
+    if (persistError || !savedId) throw new Error("RESEARCH_BUNDLE_SAVE_FAILED");
     const sources = [{ url: page.url, title: identity.company_name, retrieved_at: now.toISOString(), fact_keys: supportedKeys }];
     return json({ status: "completed", cache: "miss", tenant_company_id: tenantCompanyId, result: { ...result, sources, identity: { resolution_id: identity.id, identity_version: identity.identity_version, identity_status: identity.status, domain: identity.domain, company_name: identity.company_name } } });
   } catch (error) {

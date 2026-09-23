@@ -8,7 +8,7 @@ Card images use `namecard-images/<auth.uid()>/<card-id>/<image-id>-<checksum>.<e
 
 Company Research receives an existing tenant company ID plus a confirmed contact ID. Full personal email mailboxes, card images, notes, phone numbers and encounter history are excluded. Both Edge Functions require an active, non-draft contact, an active relationship to that TenantCompany and an active `USER_CONFIRMED` card. OCR websites and business-email domains remain `CANDIDATE`; the resolver fetches the candidate site and requires company-name identity evidence before `SERVER_VERIFIED`, or records a separate explicit `USER_CONFIRMED` decision. Research then loads the canonical resolution/version on the server instead of trusting a client candidate.
 
-Research cache keys include `tenant_company_id`, identity version and resolved domain. An identity change marks prior completed research `STALE`. Each accepted fact has a bounded excerpt, retrieval time and source tied to the exact fetched URL; unsupported facts are dropped. Generic company email/hotline values must occur in that fetched content, and unrelated source URLs are rejected. The UI reports verification/evidence coverage and never presents model self-confidence as a measured probability.
+Research cache keys include `tenant_company_id`, identity version and resolved domain. An identity change marks prior completed research `STALE`. Each accepted claim, including every individual list item, has its own bounded excerpt, retrieval time, derivation type and source tied to the exact fetched URL; unsupported sibling claims are dropped. Generic company email/hotline values must occur in that fetched content, and unrelated source URLs are rejected. The research row, claims, sources, evidence, job state and audit entry commit through one transaction RPC, so a partial write cannot become a completed cache entry. The UI reports verification/evidence coverage and never presents model self-confidence as a measured probability.
 
 ## Session storage policy
 
@@ -65,7 +65,7 @@ For a local Supabase stack use `supabase start` and `supabase db reset`. A rollb
 
 ## RLS verification
 
-Use `supabase db reset && supabase test db` to create isolated fake users A and B. The pgTAP suite proves owner reads, cross-owner denial, Storage metadata isolation, direct DML denial, approved RPC writes, composite-owner foreign keys, durable conflict evidence, delete-absent behavior and server normalization. A stale `sync_object` call returns `{status:"CONFLICT"}` instead of raising a transaction-aborting exception. No production credential is required for this local suite.
+Use `supabase db reset && supabase test db` to create isolated fake users A and B. The pgTAP suite proves owner reads, cross-owner denial, Storage metadata isolation, direct DML denial, approved RPC writes, composite-owner foreign keys, durable conflict evidence, delete-absent behavior, server normalization and rollback of an invalid research bundle without losing the previous complete result. A stale `sync_object` call returns `{status:"CONFLICT"}` instead of raising a transaction-aborting exception. No production credential is required for this local suite.
 
 ## Controlled DSR workflow
 
@@ -75,7 +75,7 @@ The account-facing `data_requests` object records a signed-in user's request. A 
 
 1. Apply migrations and deploy both Edge Functions.
 2. Configure public build variables and Edge Function secrets separately.
-3. Run `npm test`, `npm run check`, `npm run build`, `npm run test:ocr`, `npm run test:visual`, and `npm run mobile:sync`. CI also runs `deno check` for both Edge Functions and the local Supabase migration/pgTAP suite.
+3. Run `npm test`, `npm run check`, `npm run build`, `npm run test:ocr`, `npm run test:visual`, and `npm run mobile:sync`. CI also runs `deno check --frozen --lock=deno.lock` for both Edge Functions and the local Supabase migration/pgTAP suite.
 4. Verify sign-up/sign-in, native secure-token restore, two-account isolation, offline restart, delete-before-sync, retry/idempotency, stale conflict, private image upload/download/delete, export, DSR operator workflow and research against the target project using fake data.
 5. Review retention, privacy disclosure, threat model, backup/restore, incident ownership and store requirements before real-card pilot.
 
