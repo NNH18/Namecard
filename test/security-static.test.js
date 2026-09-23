@@ -81,6 +81,21 @@ test("GitHub Pages publishes the generated web bundle with pinned actions", () =
   assert.match(workflow, /path:\s+www/);
   assert.match(workflow, /pages:\s+write/);
   assert.match(workflow, /id-token:\s+write/);
+  assert.match(workflow, /vars\.SUPABASE_URL/);
+  assert.match(workflow, /vars\.SUPABASE_ANON_KEY/);
+  assert.doesNotMatch(workflow, /SERVICE_ROLE|OPENAI_API_KEY/);
+  assert.doesNotMatch(workflow, /uses:\s+[^\s]+@v\d+/);
+});
+
+test("production deployment is manual, protected and keeps server secrets out of the browser", () => {
+  const workflow = read(".github/workflows/deploy-supabase.yml");
+  assert.match(workflow, /workflow_dispatch/);
+  assert.doesNotMatch(workflow, /push:/);
+  assert.match(workflow, /environment:\s+production/);
+  assert.match(workflow, /supabase db push --linked/);
+  assert.match(workflow, /supabase functions deploy company-resolver company-research/);
+  assert.match(workflow, /SUPABASE_ACCESS_TOKEN:\s+\$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/);
+  assert.match(workflow, /OPENAI_API_KEY:\s+\$\{\{ secrets\.OPENAI_API_KEY \}\}/);
   assert.doesNotMatch(workflow, /uses:\s+[^\s]+@v\d+/);
 });
 
