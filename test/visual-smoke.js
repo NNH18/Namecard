@@ -139,7 +139,7 @@ async function verifyActiveEventAutofill(browser) {
   await page.getByRole("option", { name: "Vietnam Innovation Summit", exact: true }).evaluate(option => option.click());
   assert(await page.locator("#ocrEvent").inputValue() === "Vietnam Innovation Summit", "Không chọn được sự kiện trong dropdown");
   await page.locator("#ocrEvent").fill("Hội nghị tự nhập 2026");
-  await page.locator(".event-combobox-option.create").click();
+  await page.locator(".event-combobox-option.create").evaluate(option => option.click());
   assert(await page.locator("#ocrEvent").inputValue() === "Hội nghị tự nhập 2026", "Không tạo được giá trị Sự kiện mới");
   await page.locator("#saveScan").click();
   await page.getByText("Hội nghị tự nhập 2026", { exact: true }).waitFor();
@@ -205,3 +205,4 @@ async function captureHome(browser) {
   console.error(error);
   process.exitCode = 1;
 });
+
