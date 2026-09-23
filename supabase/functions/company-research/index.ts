@@ -110,7 +110,7 @@ Deno.serve(async request => {
     if (!modelResponse.ok) throw new Error(`MODEL_${modelResponse.status}`);
     const modelBody = await modelResponse.json();
     const rawText = modelBody.output_text || modelBody.output?.flatMap((o: any) => o.content || []).find((c: any) => c.type === "output_text")?.text;
-    const result = validateEvidenceBackedResearch(JSON.parse(rawText), { companyName: identity.company_name, website: identity.website, domain: identity.domain, pageUrl: page.url, pageText, retrievedAt: now.toISOString() });
+    const result: any = validateEvidenceBackedResearch(JSON.parse(rawText), { companyName: identity.company_name, website: identity.website, domain: identity.domain, pageUrl: page.url, pageText, retrievedAt: now.toISOString() });
     if (!result.evidence.length) throw new Error("NO_SUPPORTED_FACTS");
     const researchId = crypto.randomUUID();
     const expiresAt = new Date(now.getTime() + CACHE_DAYS * 86400000).toISOString();
@@ -121,7 +121,7 @@ Deno.serve(async request => {
     await admin.from("company_facts").delete().eq("owner_id", user.id).eq("research_id", savedId);
     await admin.from("research_sources").delete().eq("owner_id", user.id).eq("research_id", savedId);
     const sourceId = crypto.randomUUID();
-    const supportedKeys = [...new Set(result.evidence.map((item: any) => item.fact_key))];
+    const supportedKeys: string[] = [...new Set<string>(result.evidence.map((item: any) => String(item.fact_key)))];
     await admin.from("research_sources").insert({ owner_id: user.id, id: sourceId, research_id: savedId, url: page.url, title: identity.company_name, retrieved_at: now.toISOString(), fact_keys: supportedKeys });
     const values: Record<string, unknown> = { summary: result.summary, industry: result.industry, products_services: result.products_services, target_customers: result.target_customers, markets: result.markets, headquarters: result.headquarters, company_size: result.company_size, public_company_contacts: result.public_company_contacts };
     const factRows = supportedKeys.filter((key: string) => key !== "summary" || result.summary).map((key: string) => ({ owner_id: user.id, id: crypto.randomUUID(), research_id: savedId, fact_key: key, fact_value: values[key], confidence: null, verification_status: "SUPPORTED" }));

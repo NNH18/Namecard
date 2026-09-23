@@ -113,6 +113,7 @@ export function validateEvidenceBackedResearch(value, context) {
   }
 
   const arrays = ["industry", "products_services", "target_customers", "markets"];
+  /** @type {Record<string, any>} */
   const result = {
     company_name: boundedString(context.companyName, 300),
     official_website: context.website,
