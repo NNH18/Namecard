@@ -115,6 +115,8 @@ test("production deployment is manual, protected and keeps server secrets out of
   assert.match(workflow, /supabase functions deploy company-resolver company-research/);
   assert.match(workflow, /SUPABASE_ACCESS_TOKEN:\s+\$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/);
   assert.match(workflow, /OPENAI_API_KEY:\s+\$\{\{ secrets\.OPENAI_API_KEY \}\}/);
+  assert.match(workflow, /PUBLIC_APP_URL/);
+  assert.match(workflow, /node scripts\/verify-production-auth-config\.js/);
   assert.doesNotMatch(workflow, /uses:\s+[^\s]+@v\d+/);
 });
 

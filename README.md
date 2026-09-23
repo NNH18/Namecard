@@ -6,7 +6,7 @@
 
 Bản triển khai gồm core danh bạ/OCR/offline và **Company Research tự động**: chỉ contact/card đã xác nhận mới được enqueue; website/email OCR chỉ tạo candidate, còn Edge Function phải xác minh hoặc nhận xác nhận rõ ràng của người dùng trước khi research. Kết quả được khóa theo phiên bản danh tính công ty; mỗi claim có đoạn bằng chứng riêng từ đúng nguồn đã fetch, phân biệt trích xuất/suy luận và được lưu nguyên tử cùng cache/TTL. Hướng dẫn môi trường, migrations, RLS và triển khai nằm trong `docs/PRODUCTION.md`.
 
-Hardening hiện tại bổ sung queue supersession nguyên tử, reconciliation theo idempotency, native secure token storage, stable provenance, direct-DML lockdown, DSR operator workflow, server normalization và tenant-bound Company Research. Hạ tầng web production đã được triển khai và kiểm thử end-to-end bằng dữ liệu giả trên GitHub Pages và Supabase. Các external gate cho dữ liệu namecard thật trong `docs/PRODUCTION.md` vẫn độc lập.
+Hardening hiện tại bổ sung queue supersession nguyên tử, reconciliation theo idempotency, native secure token storage, stable provenance, direct-DML lockdown, DSR operator workflow, server normalization và tenant-bound Company Research. Hạ tầng web production đã được triển khai và kiểm thử end-to-end bằng dữ liệu giả trên GitHub Pages và Supabase. Workflow production bắt buộc kiểm tra custom SMTP trước khi phát hành cho tài khoản mới. Các external gate cho dữ liệu namecard thật trong `docs/PRODUCTION.md` vẫn độc lập.
 
 ## Chạy ứng dụng
 

@@ -44,6 +44,7 @@ The repository also provides the manual `Deploy Supabase production` workflow. C
 ```text
 Environment variables:
 SUPABASE_PROJECT_ID
+PUBLIC_APP_URL (optional; defaults to the GitHub Pages production URL)
 COMPANY_RESEARCH_MODEL (optional)
 RESEARCH_RATE_LIMIT_PER_HOUR (optional)
 RESOLVER_RATE_LIMIT_PER_HOUR (optional)
@@ -59,7 +60,9 @@ SUPABASE_URL
 SUPABASE_ANON_KEY
 ```
 
-The workflow validates configuration, applies all migrations, uploads Edge Function secrets, deploys both functions and lists the remote migration/function state. After it succeeds, rerun `Deploy staging demo` so the public web bundle receives the public Supabase values. Server secrets are never passed to the web build.
+Before deployment, configure Supabase Auth with public email/password sign-up, mandatory email confirmation and a custom SMTP provider with a verified sender. The default Supabase mailer is not a production delivery service. The workflow queries the Auth configuration through the Management API and stops when the public site URL or any required SMTP setting is missing; it never logs the SMTP password.
+
+The workflow validates Auth/SMTP and other configuration, applies all migrations, uploads Edge Function secrets, deploys both functions and lists the remote migration/function state. After it succeeds, rerun `Deploy staging demo` so the public web bundle receives the public Supabase values. Server secrets are never passed to the web build.
 
 For a local Supabase stack use `supabase start` and `supabase db reset`. A rollback must restore the database first, then deploy the previous web/Edge Function version. Migrations intentionally use soft delete/tombstones; do not reverse them by deleting tables on a live tenant. Back up and test restore before pilot.
 
@@ -74,7 +77,7 @@ The account-facing `data_requests` object records a signed-in user's request. A 
 ## Deployment checklist
 
 1. Apply migrations and deploy both Edge Functions.
-2. Configure public build variables and Edge Function secrets separately.
+2. Configure public build variables, custom SMTP/Auth settings and Edge Function secrets separately.
 3. Run `npm test`, `npm run check`, `npm run build`, `npm run test:ocr`, `npm run test:visual`, and `npm run mobile:sync`. CI also runs `deno check --frozen --lock=deno.lock` for both Edge Functions and the local Supabase migration/pgTAP suite.
 4. Verify sign-up/sign-in, native secure-token restore, two-account isolation, offline restart, delete-before-sync, retry/idempotency, stale conflict, private image upload/download/delete, export, DSR operator workflow and research against the target project using fake data.
 5. Review retention, privacy disclosure, threat model, backup/restore, incident ownership and store requirements before real-card pilot.

@@ -19,6 +19,7 @@ jobs:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       SUPABASE_PROJECT_ID: ${{ vars.SUPABASE_PROJECT_ID }}
+      PUBLIC_APP_URL: ${{ vars.PUBLIC_APP_URL || 'https://nnh18.github.io/Namecard/' }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       COMPANY_RESEARCH_MODEL: ${{ vars.COMPANY_RESEARCH_MODEL || 'gpt-5-mini' }}
       RESEARCH_RATE_LIMIT_PER_HOUR: ${{ vars.RESEARCH_RATE_LIMIT_PER_HOUR || '10' }}
@@ -38,6 +39,9 @@ jobs:
           test -n "$SUPABASE_DB_PASSWORD" || { echo "Missing production secret SUPABASE_DB_PASSWORD"; exit 1; }
           test -n "$OPENAI_API_KEY" || { echo "Missing production secret OPENAI_API_KEY"; exit 1; }
           [[ "$SUPABASE_PROJECT_ID" =~ ^[a-z]{20}$ ]] || { echo "SUPABASE_PROJECT_ID must be a 20-letter project ref"; exit 1; }
+          [[ "$PUBLIC_APP_URL" =~ ^https:// ]] || { echo "PUBLIC_APP_URL must be an HTTPS URL"; exit 1; }
+      - name: Verify production Auth and SMTP
+        run: node scripts/verify-production-auth-config.js
       - name: Link project and apply migrations
         shell: bash
         run: |
