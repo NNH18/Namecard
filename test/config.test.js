@@ -30,3 +30,18 @@ test("client blocks direct private-table mutation and permits reads", async () =
   assert.equal(requests.length, 1);
   assert.equal(requests[0].options.method, "GET");
 });
+test("browser default fetch keeps its global receiver", async () => {
+  const originalFetch = globalThis.fetch;
+  let receiver;
+  globalThis.fetch = async function () {
+    receiver = this;
+    return { ok: true, status: 200, async text() { return "[]"; } };
+  };
+  try {
+    const client = new SupabaseClient({ url: "https://demo.supabase.co", anonKey: "public-anon-key-with-safe-length" });
+    await client.rest("contacts", { query: "select=id" });
+    assert.equal(receiver, globalThis);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
