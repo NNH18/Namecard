@@ -136,7 +136,7 @@ async function verifyActiveEventAutofill(browser) {
   assert(await page.locator("#ocrEventListbox [role='option']").count() >= 3, "Combobox Sự kiện thiếu dropdown hiện có");
   await page.locator("#ocrEvent").press("ArrowDown");
   assert(await page.locator("#ocrEventListbox [role='option'][aria-selected='true']").count() === 1, "Combobox không công bố option đang active");
-  await page.getByRole("option", { name: "Vietnam Innovation Summit", exact: true }).click();
+  await page.locator("#ocrEvent").press("Enter");
   assert(await page.locator("#ocrEvent").inputValue() === "Vietnam Innovation Summit", "Không chọn được sự kiện trong dropdown");
   await page.locator("#ocrEvent").fill("Hội nghị tự nhập 2026");
   await page.locator(".event-combobox-option.create").click();
