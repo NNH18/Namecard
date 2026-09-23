@@ -100,49 +100,58 @@ export function validateEvidenceBackedResearch(value, context) {
   const pageUrl = context.pageUrl;
   const pageText = context.pageText;
   const retrievedAt = context.retrievedAt;
-  const evidenceRows = Array.isArray(value.fact_evidence) ? value.fact_evidence : [];
-  const evidenceByKey = new Map();
-  for (const raw of evidenceRows.slice(0, 80)) {
+  const claimRows = Array.isArray(value.claims) ? value.claims : [];
+  const claims = [];
+  const seenClaims = new Set();
+  for (const raw of claimRows.slice(0, 80)) {
     const key = boundedString(raw?.fact_key, 80);
     const sourceUrl = boundedString(raw?.source_url, 1000);
     const excerpt = boundedString(raw?.excerpt, 500);
-    if (!FACT_KEYS.includes(key) || !sameFetchedSource(sourceUrl, pageUrl) || !excerptOccurs(excerpt, pageText)) continue;
-    const rows = evidenceByKey.get(key) || [];
-    rows.push({ fact_key: key, source_url: sourceUrl, excerpt, retrieved_at: retrievedAt });
-    evidenceByKey.set(key, rows);
+    const max = key === "summary" ? 4000 : key === "company_size" ? 100 : 500;
+    const claimValue = boundedString(raw?.value, max);
+    if (!FACT_KEYS.includes(key) || key === "public_company_contacts" || !claimValue || !sameFetchedSource(sourceUrl, pageUrl) || !excerptOccurs(excerpt, pageText)) continue;
+    const signature = `${key}\u0000${normalizeEvidenceText(claimValue)}`;
+    if (seenClaims.has(signature)) continue;
+    seenClaims.add(signature);
+    const derivationType = normalizeEvidenceText(pageText).includes(normalizeEvidenceText(claimValue)) ? "EXTRACTED" : "INFERRED";
+    claims.push({ claim_id: `claim_${claims.length + 1}`, fact_key: key, value: claimValue, derivation_type: derivationType, verification_status: "SUPPORTED", source_url: sourceUrl, excerpt, retrieved_at: retrievedAt });
   }
 
   const arrays = ["industry", "products_services", "target_customers", "markets"];
+  const scalar = key => claims.find(item => item.fact_key === key)?.value || null;
   /** @type {Record<string, any>} */
   const result = {
     company_name: boundedString(context.companyName, 300),
     official_website: context.website,
-    summary: evidenceByKey.has("summary") ? boundedString(value.summary, 4000) : "",
-    headquarters: evidenceByKey.has("headquarters") && value.headquarters ? boundedString(value.headquarters, 500) : null,
-    company_size: evidenceByKey.has("company_size") && value.company_size ? boundedString(value.company_size, 100) : null
+    summary: scalar("summary") || "",
+    headquarters: scalar("headquarters"),
+    company_size: scalar("company_size")
   };
   for (const key of arrays) {
-    const items = Array.isArray(value[key]) ? value[key].filter(item => typeof item === "string").map(item => boundedString(item, 500)).filter(Boolean).slice(0, 30) : [];
-    result[key] = evidenceByKey.has(key) ? items : [];
+    result[key] = claims.filter(item => item.fact_key === key).map(item => item.value).slice(0, 30);
   }
   const contacts = (Array.isArray(value.public_company_contacts) ? value.public_company_contacts : [])
     .slice(0, 20)
     .map(item => validatePublicContact(item, { domain: context.domain, pageUrl, pageText }))
     .filter(Boolean);
   result.public_company_contacts = contacts;
-  if (contacts.length) {
-    const rows = contacts.map(item => ({ fact_key: "public_company_contacts", source_url: item.source_url, excerpt: item.evidence_excerpt, retrieved_at: retrievedAt }));
-    evidenceByKey.set("public_company_contacts", rows);
-  } else {
-    evidenceByKey.delete("public_company_contacts");
+  for (const contact of contacts) {
+    claims.push({
+      claim_id: `claim_${claims.length + 1}`,
+      fact_key: "public_company_contacts",
+      value: contact,
+      derivation_type: "EXTRACTED",
+      verification_status: "SUPPORTED",
+      source_url: contact.source_url,
+      excerpt: contact.evidence_excerpt,
+      retrieved_at: retrievedAt
+    });
   }
 
-  const presentKeys = FACT_KEYS.filter(key => key === "summary" ? Boolean(result.summary) : Array.isArray(result[key]) ? result[key].length > 0 : Boolean(result[key]));
-  const supportedKeys = presentKeys.filter(key => evidenceByKey.has(key));
-  const evidence = supportedKeys.flatMap(key => evidenceByKey.get(key) || []);
-  result.evidence = evidence;
-  result.evidence_coverage = presentKeys.length ? Math.round((supportedKeys.length / presentKeys.length) * 100) : 0;
-  result.verification_status = supportedKeys.length === 0 ? "UNVERIFIED" : supportedKeys.length === presentKeys.length ? "SUPPORTED" : "PARTIAL";
+  result.claims = claims;
+  result.evidence = claims.map(item => ({ claim_id: item.claim_id, fact_key: item.fact_key, source_url: item.source_url, excerpt: item.excerpt, retrieved_at: item.retrieved_at, derivation_type: item.derivation_type, verification_status: item.verification_status }));
+  result.evidence_coverage = claims.length ? 100 : 0;
+  result.verification_status = claims.length ? "SUPPORTED" : "UNVERIFIED";
   result.model_assessment = ["LOW", "MEDIUM", "HIGH"].includes(String(value.model_assessment || "").toUpperCase()) ? String(value.model_assessment).toUpperCase() : "UNSPECIFIED";
   result.researched_at = retrievedAt;
   return result;

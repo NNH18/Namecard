@@ -65,6 +65,20 @@ test("research migration binds cache to identity versions and stores bounded fac
   assert.match(sql, /revoke insert,update,delete on table public\.research_fact_evidence from anon,authenticated/);
 });
 
+test("research claims persist atomically and each fact requires evidence", () => {
+  const sql = read("supabase/migrations/202609230002_atomic_research_claims.sql");
+  const research = read("supabase/functions/company-research/index.ts");
+  assert.match(sql, /derivation_type[\s\S]*EXTRACTED[\s\S]*INFERRED/);
+  assert.match(sql, /create or replace function public\.persist_company_research_bundle/);
+  assert.match(sql, /pg_advisory_xact_lock/);
+  assert.match(sql, /RESEARCH_CLAIM_EVIDENCE_MISSING/);
+  assert.match(sql, /status='COMPLETED'/);
+  assert.match(sql, /revoke all on function public\.persist_company_research_bundle[\s\S]*from public,anon,authenticated/);
+  assert.match(research, /admin\.rpc\("persist_company_research_bundle"/);
+  assert.doesNotMatch(research, /from\("company_research"\)\.upsert/);
+  assert.doesNotMatch(research, /from\("company_facts"\)\.insert/);
+});
+
 test("CI runs current web and database suites without production credentials", () => {
   const workflow = read(".github/workflows/ci.yml");
   for (const command of ["npm ci", "npm test", "npm run check", "npm run build", "npm run test:visual", "supabase db reset", "supabase test db"]) assert.match(workflow, new RegExp(command.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
@@ -72,6 +86,8 @@ test("CI runs current web and database suites without production credentials", (
   assert.doesNotMatch(workflow, /version:\s+latest/);
   assert.match(workflow, /node-version:\s+24\.19\.0/);
   assert.match(workflow, /version:\s+2\.117\.0/);
+  assert.match(workflow, /deno check --frozen --lock=deno\.lock/);
+  assert.ok(fs.existsSync(path.join(root, "deno.lock")), "deno.lock must be committed");
 });
 
 test("GitHub Pages publishes the generated web bundle with pinned actions", () => {
