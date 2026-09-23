@@ -40,7 +40,7 @@ The current follow-up removes heuristic domain acceptance from the identity boun
 
 ## External gates
 
-Legal/Store Gate, real Supabase staging credentials, live Edge Function/provider validation, Android/iOS device security tests, backup/restore exercise, threat-model review, retention approval and incident/support ownership remain required before any real-card pilot or production claim.
+Live Supabase/OpenAI deployment and generated-data E2E validation are complete. Legal/Store Gate, Android/iOS device security tests, backup/restore exercise, threat-model review, retention approval and incident/support ownership remain required before processing real-card pilot data.
 
 ## Final self-audit
 
@@ -56,3 +56,4 @@ Legal/Store Gate, real Supabase staging credentials, live Edge Function/provider
 | Durable conflict evidence, current CI and commit-bound evidence exist | YES / YES / YES |
 | Repository contains detected server secrets or supplied real-card PII | NO |
 | Repository claims production/compliance/store/real-card-pilot readiness | NO |
+
