@@ -39,14 +39,14 @@
     const website = safeWebsite(input.website || "");
     const websiteDomain = normalizeDomain(website);
     if (websiteDomain && !FREE_EMAIL_DOMAINS.has(websiteDomain)) {
-      return { status: "resolved", company_name: companyName, domain: websiteDomain, website, confidence: 0.95, reason: "official_website", evidence: [{ type: "website", value: website }] };
+      return { status: "candidate", identity_status: "CANDIDATE", company_name: companyName, domain: websiteDomain, website, reason: "unverified_website_candidate", evidence: [{ type: "website_candidate", value: website }] };
     }
     const emailDomain = normalizeDomain(input.businessEmail || input.email || "");
     if (emailDomain && !FREE_EMAIL_DOMAINS.has(emailDomain)) {
-      return { status: "resolved", company_name: companyName, domain: emailDomain, website: `https://${emailDomain}/`, confidence: 0.85, reason: "business_email_domain", evidence: [{ type: "business_email_domain", value: emailDomain }] };
+      return { status: "candidate", identity_status: "CANDIDATE", company_name: companyName, domain: emailDomain, website: `https://${emailDomain}/`, reason: "business_email_domain_candidate", evidence: [{ type: "business_email_domain_candidate", value: emailDomain }] };
     }
     const reason = emailDomain && FREE_EMAIL_DOMAINS.has(emailDomain) ? "free_email_is_not_company_evidence" : companyName ? "ambiguous_without_domain" : "insufficient_input";
-    return { status: "unresolved", company_name: companyName, domain: "", website: "", confidence: 0, reason, evidence: [] };
+    return { status: "unresolved", identity_status: "UNRESOLVED", company_name: companyName, domain: "", website: "", reason, evidence: [] };
   }
 
   return { FREE_EMAIL_DOMAINS, normalizeDomain, safeWebsite, resolveCompany };

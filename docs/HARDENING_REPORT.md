@@ -2,6 +2,10 @@
 
 Status: **Engineering hardening completed. Ready for controlled staging validation with fake data.** GitHub Actions verified both web and Supabase database jobs. This is not production, compliance, store or real-card-pilot approval.
 
+## Research correctness follow-up
+
+The current follow-up removes heuristic domain acceptance from the identity boundary. Draft/unconfirmed contacts are blocked on both client and server; resolver states are `UNRESOLVED`, `CANDIDATE`, `USER_CONFIRMED` and `SERVER_VERIFIED`; research loads the stored server resolution/version and rejects stale identities. Important facts and public company contacts require bounded excerpts from the exact fetched source. The user interface shows evidence coverage and verification state instead of an uncalibrated probability. Final commit-bound evidence is recorded in `docs/TEST_EVIDENCE.md` after CI completes for the merged main SHA.
+
 ## Files changed
 
 | Area | Main paths | Reason |

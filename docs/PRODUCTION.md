@@ -6,7 +6,9 @@ The browser uses the public Supabase anon key only. Supabase Auth identifies the
 
 Card images use `namecard-images/<auth.uid()>/<card-id>/<image-id>-<checksum>.<ext>`. The bucket is private and owner-only in this staging scope. The local Blob is committed with the card before `LOCAL_ACCEPTED`; upload status and database ACK remain separate. Queue records distinguish never dispatched, possibly received, and acknowledged content. A delete atomically supersedes older content, minimizes queued payloads and purges local blobs. Never-dispatched objects create no server row; possibly received objects reconcile by idempotency metadata and then propagate deletion.
 
-Company Research receives an existing tenant company ID, company name, official website/business domain and optional address. Full personal email mailboxes, card images, notes, phone numbers and encounter history are excluded. Edge Functions verify that the tenant company belongs to the authenticated owner, block unsafe URLs, consume atomic resolver/research quota buckets, coalesce jobs and cache per tenant company/domain. Public contacts use a structured schema and deterministic validation that rejects named-person email, direct mobile and personal labels.
+Company Research receives an existing tenant company ID plus a confirmed contact ID. Full personal email mailboxes, card images, notes, phone numbers and encounter history are excluded. Both Edge Functions require an active, non-draft contact, an active relationship to that TenantCompany and an active `USER_CONFIRMED` card. OCR websites and business-email domains remain `CANDIDATE`; the resolver fetches the candidate site and requires company-name identity evidence before `SERVER_VERIFIED`, or records a separate explicit `USER_CONFIRMED` decision. Research then loads the canonical resolution/version on the server instead of trusting a client candidate.
+
+Research cache keys include `tenant_company_id`, identity version and resolved domain. An identity change marks prior completed research `STALE`. Each accepted fact has a bounded excerpt, retrieval time and source tied to the exact fetched URL; unsupported facts are dropped. Generic company email/hotline values must occur in that fetched content, and unrelated source URLs are rejected. The UI reports verification/evidence coverage and never presents model self-confidence as a measured probability.
 
 ## Session storage policy
 
@@ -51,7 +53,7 @@ The account-facing `data_requests` object records a signed-in user's request. A 
 
 1. Apply migrations and deploy both Edge Functions.
 2. Configure public build variables and Edge Function secrets separately.
-3. Run `npm test`, `npm run check`, `npm run build`, `npm run test:ocr`, `npm run test:visual`, and `npm run mobile:sync`.
+3. Run `npm test`, `npm run check`, `npm run build`, `npm run test:ocr`, `npm run test:visual`, and `npm run mobile:sync`. CI also runs `deno check` for both Edge Functions and the local Supabase migration/pgTAP suite.
 4. Verify sign-up/sign-in, native secure-token restore, two-account isolation, offline restart, delete-before-sync, retry/idempotency, stale conflict, private image upload/download/delete, export, DSR operator workflow and research against the target project using fake data.
 5. Review retention, privacy disclosure, threat model, backup/restore, incident ownership and store requirements before real-card pilot.
 
