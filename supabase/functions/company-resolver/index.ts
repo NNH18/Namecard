@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
-import { cleanHtml, CORS_HEADERS, fetchBounded, json, validateCandidate } from "../_shared/security.ts";
+import { cleanHtml, CORS_HEADERS, fetchBounded, getAuthenticatedUser, json, validateCandidate } from "../_shared/security.ts";
 import { verifyCompanyIdentity } from "../_shared/research-contract.mjs";
 
 async function sha256(value: string) {
@@ -69,8 +69,9 @@ Deno.serve(async request => {
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const auth = request.headers.get("authorization") || "";
-  const client = createClient(supabaseUrl, anonKey, { global: { headers: { authorization: auth } } });
-  const { data: { user } } = await client.auth.getUser();
+  const accessToken = auth.replace(/^Bearer\s+/i, "").trim();
+  if (!accessToken) return json({ error: "AUTH_REQUIRED" }, 401);
+  const user = await getAuthenticatedUser(supabaseUrl, anonKey, accessToken);
   if (!user) return json({ error: "AUTH_REQUIRED" }, 401);
   const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
   try {

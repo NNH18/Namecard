@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
-import { cleanHtml, CORS_HEADERS, fetchBounded, json } from "../_shared/security.ts";
+import { cleanHtml, CORS_HEADERS, fetchBounded, getAuthenticatedUser, json } from "../_shared/security.ts";
 import { RESEARCH_FACT_KEYS, validateEvidenceBackedResearch } from "../_shared/research-contract.mjs";
 
 const CACHE_DAYS = Math.max(1, Math.min(90, Number(Deno.env.get("RESEARCH_CACHE_DAYS") || 30)));
@@ -56,8 +56,9 @@ Deno.serve(async request => {
   const anon = Deno.env.get("SUPABASE_ANON_KEY")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const auth = request.headers.get("authorization") || "";
-  const userClient = createClient(url, anon, { global: { headers: { authorization: auth } } });
-  const { data: { user } } = await userClient.auth.getUser();
+  const accessToken = auth.replace(/^Bearer\s+/i, "").trim();
+  if (!accessToken) return json({ error: "AUTH_REQUIRED" }, 401);
+  const user = await getAuthenticatedUser(url, anon, accessToken);
   if (!user) return json({ error: "AUTH_REQUIRED" }, 401);
   const admin = createClient(url, serviceKey, { auth: { persistSession: false } });
   let activeCacheKey = "";

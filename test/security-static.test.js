@@ -52,6 +52,9 @@ test("Company Research is bound to the existing TenantCompany and filters person
   assert.match(research, /public_company_contacts/); assert.match(shared, /PERSONAL_CONTACT_REJECTED/);
   assert.match(research, /consume_research_quota/);
   assert.match(research, /CONFIRMED_CARD_REQUIRED/); assert.match(resolver, /CONFIRMED_CARD_REQUIRED/);
+  assert.match(research, /getAuthenticatedUser\(url, anon, accessToken\)/); assert.match(resolver, /getAuthenticatedUser\(supabaseUrl, anonKey, accessToken\)/);
+  assert.match(research, /if \(!accessToken\) return json\(\{ error: "AUTH_REQUIRED" \}, 401\)/);
+  assert.match(resolver, /if \(!accessToken\) return json\(\{ error: "AUTH_REQUIRED" \}, 401\)/);
   assert.match(research, /company_resolution[\s\S]*SERVER_VERIFIED[\s\S]*USER_CONFIRMED/);
   assert.doesNotMatch(research, /body\?\.candidate/);
 });
