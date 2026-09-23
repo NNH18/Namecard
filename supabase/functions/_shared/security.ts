@@ -1,6 +1,16 @@
 export const CORS_HEADERS = { "access-control-allow-origin": "*", "access-control-allow-headers": "authorization, x-client-info, apikey, content-type", "access-control-allow-methods": "POST, OPTIONS" };
 export const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...CORS_HEADERS, "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff" } });
 
+export async function getAuthenticatedUser(supabaseUrl: string, anonKey: string, accessToken: string) {
+  if (!accessToken) return null;
+  const response = await fetch(`${supabaseUrl.replace(/\/$/, "")}/auth/v1/user`, {
+    headers: { apikey: anonKey, authorization: `Bearer ${accessToken}` }
+  });
+  if (!response.ok) return null;
+  const user = await response.json();
+  return typeof user?.id === "string" && user.id ? user : null;
+}
+
 const PRIVATE_V4 = /^(?:0\.|10\.|127\.|169\.254\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.|100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.|198\.1[89]\.|(?:22[4-9]|23\d|24\d|25[0-5])\.)/;
 const PRIVATE_V6 = /^(?:::1$|fc|fd|fe[89ab])/i;
 export function safePublicUrl(value: string): URL {
