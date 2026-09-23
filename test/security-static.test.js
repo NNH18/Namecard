@@ -45,16 +45,33 @@ test("server normalization, stable provenance and atomic research quota are pres
 
 test("Company Research is bound to the existing TenantCompany and filters personal contacts", () => {
   const research = read("supabase/functions/company-research/index.ts");
+  const resolver = read("supabase/functions/company-resolver/index.ts");
   const shared = read("supabase/functions/_shared/security.ts");
   assert.match(research, /TENANT_COMPANY_REQUIRED/); assert.match(research, /TENANT_COMPANY_NOT_FOUND/);
   assert.doesNotMatch(research, /tenant_companies"\)\.upsert/);
   assert.match(research, /public_company_contacts/); assert.match(shared, /PERSONAL_CONTACT_REJECTED/);
   assert.match(research, /consume_research_quota/);
+  assert.match(research, /CONFIRMED_CARD_REQUIRED/); assert.match(resolver, /CONFIRMED_CARD_REQUIRED/);
+  assert.match(research, /company_resolution[\s\S]*SERVER_VERIFIED[\s\S]*USER_CONFIRMED/);
+  assert.doesNotMatch(research, /body\?\.candidate/);
+});
+
+test("research migration binds cache to identity versions and stores bounded fact evidence", () => {
+  const sql = read("supabase/migrations/202609230001_research_identity_evidence.sql");
+  assert.match(sql, /SERVER_VERIFIED/); assert.match(sql, /USER_CONFIRMED/); assert.match(sql, /CANDIDATE/);
+  assert.match(sql, /identity_version/); assert.match(sql, /status='STALE'/);
+  assert.match(sql, /create table public\.research_fact_evidence/);
+  assert.match(sql, /length\(excerpt\) between 8 and 500/);
+  assert.match(sql, /revoke insert,update,delete on table public\.research_fact_evidence from anon,authenticated/);
 });
 
 test("CI runs current web and database suites without production credentials", () => {
   const workflow = read(".github/workflows/ci.yml");
   for (const command of ["npm ci", "npm test", "npm run check", "npm run build", "npm run test:visual", "supabase db reset", "supabase test db"]) assert.match(workflow, new RegExp(command.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.doesNotMatch(workflow, /uses:\s+[^\s]+@v\d+/);
+  assert.doesNotMatch(workflow, /version:\s+latest/);
+  assert.match(workflow, /node-version:\s+24\.19\.0/);
+  assert.match(workflow, /version:\s+2\.117\.0/);
 });
 
 test("service worker never caches private API, auth or storage responses", () => {

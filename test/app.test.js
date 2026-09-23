@@ -4,6 +4,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 const logic = require("../logic.js");
+const companyResearch = require("../lib/company-research.js");
+const companyResolver = require("../lib/company-resolver.js");
 
 function createClassList() {
   return { add() {}, remove() {}, toggle() {}, contains() { return false; } };
@@ -48,6 +50,7 @@ function createAppSandbox(production = null) {
     window: {
       __BCARD_TEST__: true,
       BCardLogic: logic,
+      BCardLib: { companyResearch, companyResolver },
       BCardProduction: production,
       matchMedia() { return { matches: false }; },
       scrollTo() {}, location: { href: "" },
@@ -71,11 +74,38 @@ test("auto research waits until TenantCompany sync has no pending operation", as
     research: { async enqueue(input) { calls.push(`research:${input.tenantCompanyId}`); return { status: "completed" }; } }
   };
   const { sandbox } = createAppSandbox(production);
+  vm.runInContext(`data.contacts.find(item => item.id === "ct_anh").draft = false; data.cards.find(item => item.contactId === "ct_anh").reviewStatus = "USER_CONFIRMED";`, sandbox);
   await vm.runInContext(`syncThenResearch(data.contacts.find(item => item.id === "ct_anh"))`, sandbox);
   assert.deepEqual(calls, ["sync"]);
   pending = false;
   await vm.runInContext(`syncThenResearch(data.contacts.find(item => item.id === "ct_anh"))`, sandbox);
   assert.deepEqual(calls, ["sync", "sync", "research:company_rel_1"]);
+});
+
+test("draft contact cannot trigger automatic external research", async () => {
+  const calls = [];
+  const production = {
+    configured: true, ownerId: "owner_test",
+    sync: { async process() { calls.push("sync"); } },
+    db: { async listOperations() { return []; } },
+    research: { async enqueue() { calls.push("research"); } }
+  };
+  const { sandbox } = createAppSandbox(production);
+  await vm.runInContext(`syncThenResearch(data.contacts.find(item => item.id === "ct_thu"))`, sandbox);
+  assert.deepEqual(calls, []);
+});
+
+test("home identity, tag filters and empty contacts derive from current account data", () => {
+  const production = { configured: true, session: { user: { email: "lan@example.test", user_metadata: { full_name: "Lan Nguyễn" } } } };
+  const { sandbox } = createAppSandbox(production);
+  const home = vm.runInContext("renderHome()", sandbox);
+  assert.match(home, /Xin chào, Lan Nguyễn/);
+  assert.doesNotMatch(home, /Xin chào, Hà/);
+  const contacts = vm.runInContext(`data.contacts.forEach(item => { item.tags = []; }); data.contacts[0].tags = ["Khách VIP"]; renderContacts()`, sandbox);
+  assert.match(contacts, /data-filter="Khách VIP"/);
+  assert.doesNotMatch(contacts, /data-filter="Công nghệ"/);
+  const empty = vm.runInContext(`data.contacts = []; renderContacts()`, sandbox);
+  assert.match(empty, /Không có kết quả trong dữ liệu trên thiết bị/);
 });
 
 test("commitMutation rollback khi localStorage ném QuotaExceededError", () => {

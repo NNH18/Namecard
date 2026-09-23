@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(16);
+select plan(19);
 
 insert into auth.users(id,email,encrypted_password,aud,role) values
   ('10000000-0000-4000-8000-000000000001','a@example.test','x','authenticated','authenticated'),
@@ -32,6 +32,9 @@ select is((select count(*)::integer from public.cards where id='never-created'),
 
 select is(public.normalize_contact_method('PHONE','0909 123 456'),public.normalize_contact_method('PHONE','+84 909 123 456'),'VN phone formats normalize identically');
 select is(public.normalize_contact_method('PHONE','0909123456'),public.normalize_contact_method('PHONE','+84 909 123 456'),'compact VN phone matches international form');
+select has_column('public','company_resolution','identity_version','company identity has an explicit version boundary');
+select has_table('public','research_fact_evidence','research fact evidence table exists');
+select throws_ok($$insert into public.research_fact_evidence(owner_id,id,research_id,fact_id,source_id,excerpt,retrieved_at) values('10000000-0000-4000-8000-000000000001','evidence-bypass','missing','missing','missing','unsupported excerpt',now())$$,'42501',null,'authenticated direct evidence DML is blocked');
 
 select * from finish();
 rollback;

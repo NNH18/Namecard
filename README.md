@@ -4,7 +4,7 @@
 
 ## Phạm vi bản hoàn thiện
 
-Bản triển khai gồm core danh bạ/OCR/offline và **Company Research tự động**: sau khi contact đủ điều kiện được lưu, hệ thống enqueue resolver và server-side research; kết quả có nguồn, cache/TTL, trạng thái UI và manual refresh. Hướng dẫn môi trường, migrations, RLS và triển khai nằm trong `docs/PRODUCTION.md`.
+Bản triển khai gồm core danh bạ/OCR/offline và **Company Research tự động**: chỉ contact/card đã xác nhận mới được enqueue; website/email OCR chỉ tạo candidate, còn Edge Function phải xác minh hoặc nhận xác nhận rõ ràng của người dùng trước khi research. Kết quả được khóa theo phiên bản danh tính công ty, chỉ giữ dữ kiện có đoạn bằng chứng từ đúng nguồn đã fetch, có cache/TTL, trạng thái UI và manual refresh. Hướng dẫn môi trường, migrations, RLS và triển khai nằm trong `docs/PRODUCTION.md`.
 
 Hardening hiện tại bổ sung queue supersession nguyên tử, reconciliation theo idempotency, native secure token storage, stable provenance, direct-DML lockdown, DSR operator workflow, server normalization và tenant-bound Company Research. Đây là trạng thái kỹ thuật dành cho controlled staging bằng dữ liệu giả; các external gate trong `docs/PRODUCTION.md` vẫn độc lập.
 
@@ -49,6 +49,7 @@ Theo yêu cầu bàn giao hiện tại, không tạo APK/AAB. Web assets nằm �
 - App shell được cache bằng service worker để có thể mở lại và tìm dữ liệu đã lưu khi offline.
 - Dark mode, safe-area iOS/Android, mục tiêu chạm tối thiểu 44–48px, SVG icons và hiệu ứng card 3D có hỗ trợ `prefers-reduced-motion`.
 - Xem hồ sơ hiện tại riêng với snapshot card, nhiều contact methods, nhiều quan hệ công ty và provenance từng giá trị.
+- Company Research không chạy với draft/card chưa xác nhận; kết quả hiển thị trạng thái xác minh, độ phủ bằng chứng và đoạn trích thay vì phần trăm “độ tin cậy” tự báo của model.
 - Sửa liên kết nhầm giữa card và contact mà không trộn dữ liệu; lịch sử gặp theo sự kiện vẫn được giữ để tìm/lọc offline.
 - Search, copy và các chỉ mục hiển thị chỉ dùng method/relationship đang `ACTIVE`, không làm lộ lại giá trị `REVOKED`.
 - Duyệt proposal có kiểm tra target hiện hành; proposal cũ bị supersede thay vì ghi đè dữ liệu mới hơn.

@@ -200,6 +200,17 @@ function primaryRelationship(contact) {
   return contact.relationships.find(item => item.primary && item.status === "ACTIVE") || contact.relationships.find(item => item.status === "ACTIVE") || {};
 }
 
+function currentAccountIdentity() {
+  const user = production?.session?.user;
+  const metadata = user?.user_metadata || {};
+  const displayName = String(metadata.full_name || metadata.name || metadata.display_name || "").trim();
+  const email = user?.email || (production?.configured ? "" : "local@development.invalid");
+  const fallback = email ? email.split("@")[0].replace(/[._-]+/g, " ").trim() : "";
+  const label = displayName || fallback || "BCard";
+  const initials = label.split(/\s+/).slice(0, 2).map(part => part[0]?.toUpperCase()).join("") || "BC";
+  return { label, initials, email };
+}
+
 function activeEvent() {
   return data.events.find(event => event.id === data.settings.activeEventId) || data.events[0] || null;
 }
@@ -282,8 +293,9 @@ function renderHome() {
     ...recentCards.map(card => `<div class="timeline-item"><span class="timeline-icon">${icon(card.sync === "COMPLETE" ? "check" : "clock-3")}</span><div><p><strong>${esc(card.name)}</strong> · ${esc(statusLabel(card.sync))}</p><small>${esc(card.scanned)}</small></div></div>`),
     recentNote ? `<div class="timeline-item"><span class="timeline-icon">${icon("notebook-pen")}</span><div><p>Ghi chú của <strong>${esc(recentNote.contactName)}</strong></p><small>${esc(recentNote.date)}</small></div></div>` : ""
   ].filter(Boolean).slice(0, 3);
+  const identity = currentAccountIdentity();
   return `<div class="hero grid-item">
-    <div class="hero-copy"><p class="eyebrow">Xin chào, Hà</p><h1>Giữ đúng người.<br/>Nhớ đúng chuyện.</h1><p>Lưu namecard, bối cảnh và mọi cách liên hệ trong danh bạ riêng của bạn.</p><div class="hero-actions"><button class="button pressable" data-action="scan">${icon("scan-line")} Quét namecard</button><button class="button secondary pressable" data-route="contacts">Mở danh bạ ${icon("arrow-right")}</button></div></div>
+    <div class="hero-copy"><p class="eyebrow">${production?.configured || production?.session ? `Xin chào, ${esc(identity.label)}` : "Xin chào"}</p><h1>Giữ đúng người.<br/>Nhớ đúng chuyện.</h1><p>Lưu namecard, bối cảnh và mọi cách liên hệ trong danh bạ riêng của bạn.</p><div class="hero-actions"><button class="button pressable" data-action="scan">${icon("scan-line")} Quét namecard</button><button class="button secondary pressable" data-route="contacts">Mở danh bạ ${icon("arrow-right")}</button></div></div>
     <div class="hero-card-stage" aria-label="Chồng namecard ba chiều minh họa">
       <div class="floating-card back" aria-hidden="true"></div><div class="floating-card mid" aria-hidden="true"></div>
       <div class="floating-card front"><span class="mini-logo">${esc(featured.initials?.slice(0, 1) || "B")}</span><strong>${esc(featured.name)}</strong><span>${esc(featuredRelationship.role || "Chưa có chức danh")} · ${esc(featuredRelationship.company || "Chưa có công ty")}</span></div>
@@ -291,7 +303,7 @@ function renderHome() {
     </div>
   </div>
   <div class="grid two">
-    <section class="panel grid-item"><div class="panel-head"><h2>Gặp gần đây</h2><button class="button ghost small pressable" data-route="contacts">Xem tất cả ${icon("arrow-right")}</button></div><div class="panel-body panel-body-compact">${contacts.slice(0,4).map(contactRow).join("")}</div></section>
+    <section class="panel grid-item"><div class="panel-head"><h2>Gặp gần đây</h2><button class="button ghost small pressable" data-route="contacts">Xem tất cả ${icon("arrow-right")}</button></div><div class="panel-body panel-body-compact">${contacts.length ? contacts.slice(0,4).map(contactRow).join("") : `<div class="empty">${icon("contact-round")}Chưa có liên hệ. Quét namecard đầu tiên để bắt đầu.</div>`}</div></section>
     <section class="panel"><div class="panel-head"><h2>Hoạt động</h2><button class="button ghost small" data-route="sync">Đồng bộ</button></div><div class="panel-body"><div class="timeline">${activities.join("") || `<div class="empty">${icon("inbox")}Chưa có hoạt động.</div>`}</div><div class="insight-card"><strong>Gợi ý hôm nay</strong><p>${draftCount ? `Bạn có ${draftCount} hồ sơ chưa xác nhận. Kiểm tra lại tên và thông tin trên ảnh card khi thuận tiện.` : "Tất cả hồ sơ hiện đã được đối chiếu."}</p></div></div></section>
   </div>`;
 }
@@ -315,11 +327,15 @@ function searchableContactText(contact) {
 }
 
 function renderContacts() {
-  const filters = ["Tất cả", "Công nghệ", "Đầu tư", "Thiết kế", "Chưa xác nhận"];
+  const activeContacts = data.contacts.filter(contact => contact.lifecycle !== "DELETED");
+  const dynamicTags = [...new Set(activeContacts.flatMap(contact => contact.tags || []).filter(tag => tag && tag !== "Chưa xác nhận"))].sort((a, b) => a.localeCompare(b, "vi"));
+  const filters = ["Tất cả", ...dynamicTags, ...(activeContacts.some(contact => contact.draft) ? ["Chưa xác nhận"] : [])];
+  if (!filters.includes(contactFilter)) contactFilter = "Tất cả";
+  const results = filteredContacts();
   return `${pageHead("Danh bạ riêng", "Những người bạn đã gặp", "Tìm theo tên, công ty, số điện thoại, email, tag, sự kiện hoặc ghi chú — kể cả khi không có mạng.", `<button class="button pressable" data-action="scan">${icon("scan-line")} Quét card</button>`)}
     <div class="table-head"><div class="search-wrap">${icon("search")}<label class="sr-only" for="contactSearch">Tìm danh bạ</label><input class="search" id="contactSearch" autocomplete="off" placeholder="Tìm trong dữ liệu trên thiết bị…" /><button class="search-clear pressable" data-action="clear-search" aria-label="Xóa nội dung tìm kiếm">${icon("x")}</button></div><div class="toolbar"><select id="eventFilter" aria-label="Lọc sự kiện"><option>Tất cả sự kiện</option>${data.events.map(e => `<option>${esc(e.name)}</option>`).join("")}</select></div></div>
     <div class="filter-row">${filters.map(filter => `<button class="chip ${filter === contactFilter ? "active" : ""}" data-filter="${filter}">${filter}</button>`).join("")}</div>
-    <section class="panel"><div class="panel-body panel-body-compact" id="contactResults">${filteredContacts().map(contactRow).join("")}</div></section>`;
+    <section class="panel"><div class="panel-body panel-body-compact" id="contactResults">${results.length ? results.map(contactRow).join("") : `<div class="empty">${icon("search-x")}Không có kết quả trong dữ liệu trên thiết bị.</div>`}</div></section>`;
 }
 
 function updateContactResults() {
@@ -358,50 +374,81 @@ function renderContactDetail(contact) {
 
 function companyResearchKey(contact) {
   const relationship = primaryRelationship(contact);
-  const resolved = window.BCardLib?.companyResolver?.resolveCompany({ companyName: relationship.company, website: relationship.website, businessEmail: preferredMethod(contact, "EMAIL")?.value || "" });
   const tenantCompanyId = relationship.companyId || (relationship.id ? `company_${relationship.id}` : "");
-  return `${tenantCompanyId}|${String(resolved?.domain || relationship.company || "").toLowerCase().replace(/[^a-z0-9.-]/g, "_")}`.slice(0, 400);
+  return tenantCompanyId;
 }
 
 function renderCompanyResearch(contact) {
   if (!production?.research) return "";
+  const relationship = primaryRelationship(contact);
+  if (!relationship.company) return "";
   const state = production.research.getState(companyResearchKey(contact));
-  const result = state.result;
-  const statusText = { not_researched: "Chưa nghiên cứu", resolving: "Đang xác định công ty", researching: "Đang nghiên cứu", completed: "Đã hoàn tất", unresolved: "Chưa xác định được", failed: "Nghiên cứu thất bại" }[state.status] || "Chưa nghiên cứu";
-  return `<section class="panel stacked-panel"><div class="panel-head"><div><h2>Thông tin công khai của doanh nghiệp</h2><small class="muted-text">${esc(statusText)}${state.cache ? ` · cache ${esc(state.cache)}` : ""}</small></div><button class="button secondary small pressable" data-action="research-company" data-id="${esc(contact.id)}">${icon("search")} ${state.status === "completed" ? "Làm mới" : "Nghiên cứu"}</button></div><div class="panel-body">${result ? `<div class="insight-card flush-top"><strong>${esc(result.company_name)}</strong><p>${esc(result.summary || "Chưa có tóm tắt.")}</p>${result.official_website ? `<button class="button ghost small pressable" data-action="website" data-value="${esc(result.official_website)}">${icon("external-link")} Website chính thức</button>` : ""}</div><div class="info-section"><h3>Ngành & sản phẩm</h3><p class="subhead">${esc([...(result.industry || []), ...(result.products_services || [])].join(" · ") || "Chưa có dữ liệu")}</p></div><div class="info-section"><h3>Thị trường & khách hàng</h3><p class="subhead">${esc([...(result.markets || []), ...(result.target_customers || [])].join(" · ") || "Chưa có dữ liệu")}</p></div><div class="info-section"><h3>Quy mô & trụ sở</h3><p class="subhead">${esc([result.company_size, result.headquarters].filter(Boolean).join(" · ") || "Chưa có dữ liệu")}</p></div><div class="info-section"><h3>Liên hệ công khai của doanh nghiệp</h3>${(result.public_company_contacts || []).map(item => `<p class="subhead"><strong>${esc(item.label)}</strong>: ${esc(item.value)} <small>(${esc(item.category)})</small></p>`).join("") || '<p class="subhead">Chưa có dữ liệu</p>'}<small class="source">Độ tin cậy ${esc(result.confidence)}% · nghiên cứu ${esc(result.researched_at || "—")}</small></div><div class="info-section"><h3>Nguồn</h3>${(result.sources || []).map(source => `<p><a href="${esc(source.url)}" target="_blank" rel="noopener noreferrer">${esc(source.title)}</a><br><small class="source">${esc(source.retrieved_at)}</small></p>`).join("") || '<p class="subhead">Chưa có nguồn.</p>'}</div>` : `<p class="subhead">${esc(state.message || state.reason || "BCard chỉ nghiên cứu khi có website chính thức hoặc email tên miền doanh nghiệp.")}</p>`}</div></section>`;
+  const currentDomain = window.BCardLib?.companyResolver?.normalizeDomain(relationship.website || preferredMethod(contact, "EMAIL")?.value || "") || "";
+  const currentName = logic.normalizeName(relationship.company || "");
+  const boundIdentity = state.result?.identity;
+  const stale = Boolean(boundIdentity && (boundIdentity.domain !== currentDomain || logic.normalizeName(boundIdentity.company_name || "") !== currentName));
+  const result = stale ? null : state.result;
+  const effectiveStatus = stale ? "stale" : state.status;
+  const statusText = { not_researched: "Chưa nghiên cứu", resolving: "Đang xác minh công ty", candidate: "Cần xác nhận website", researching: "Đang nghiên cứu", completed: "Đã đối chiếu nguồn", unresolved: "Chưa xác định được", failed: "Nghiên cứu thất bại", stale: "Kết quả cũ không còn khớp công ty" }[effectiveStatus] || "Chưa nghiên cứu";
+  const action = effectiveStatus === "candidate" ? "confirm-company-research" : "research-company";
+  const actionLabel = effectiveStatus === "candidate" ? "Xác nhận website & nghiên cứu" : effectiveStatus === "completed" ? "Làm mới" : "Nghiên cứu";
+  const identityLabel = result?.identity?.identity_status === "SERVER_VERIFIED" ? "Danh tính được server đối chiếu" : result?.identity?.identity_status === "USER_CONFIRMED" ? "Website do người dùng xác nhận" : "";
+  return `<section class="panel stacked-panel"><div class="panel-head"><div><h2>Thông tin công khai của doanh nghiệp</h2><small class="muted-text">${esc(statusText)}${state.cache ? ` · cache ${esc(state.cache)}` : ""}</small></div><button class="button secondary small pressable" data-action="${action}" data-id="${esc(contact.id)}" ${contact.draft ? "disabled" : ""}>${icon("search")} ${actionLabel}</button></div><div class="panel-body">${result ? `<div class="insight-card flush-top"><strong>${esc(result.company_name)}</strong><p>${esc(result.summary || "Chưa có tóm tắt có bằng chứng.")}</p>${result.official_website ? `<button class="button ghost small pressable" data-action="website" data-value="${esc(result.official_website)}">${icon("external-link")} Website đã đối chiếu</button>` : ""}<small class="source">${esc(identityLabel)}</small></div><div class="info-section"><h3>Ngành & sản phẩm</h3><p class="subhead">${esc([...(result.industry || []), ...(result.products_services || [])].join(" · ") || "Chưa có dữ liệu có bằng chứng")}</p></div><div class="info-section"><h3>Thị trường & khách hàng</h3><p class="subhead">${esc([...(result.markets || []), ...(result.target_customers || [])].join(" · ") || "Chưa có dữ liệu có bằng chứng")}</p></div><div class="info-section"><h3>Quy mô & trụ sở</h3><p class="subhead">${esc([result.company_size, result.headquarters].filter(Boolean).join(" · ") || "Chưa có dữ liệu có bằng chứng")}</p></div><div class="info-section"><h3>Liên hệ công khai của doanh nghiệp</h3>${(result.public_company_contacts || []).map(item => `<p class="subhead"><strong>${esc(item.label)}</strong>: ${esc(item.value)} <small>(${esc(item.category)})</small></p>`).join("") || '<p class="subhead">Chưa có dữ liệu có bằng chứng</p>'}<small class="source">Bằng chứng hỗ trợ ${esc(result.evidence_coverage)}% nhóm dữ kiện · tra cứu ${esc(result.researched_at || "—")}</small></div><div class="info-section"><h3>Nguồn & đoạn bằng chứng</h3>${(result.evidence || []).map(item => `<details><summary>${esc(item.fact_key)} · ${esc(item.source_url)}</summary><p class="source">${esc(item.excerpt)}</p><small>${esc(item.retrieved_at)}</small></details>`).join("") || '<p class="subhead">Chưa có bằng chứng được đối chiếu.</p>'}</div>` : `<p class="subhead">${esc(contact.draft ? "Hãy xác nhận card trước khi nghiên cứu doanh nghiệp." : state.message || state.reason || "BCard chỉ nghiên cứu sau khi contact được xác nhận và danh tính công ty được đối chiếu.")}</p>`}</div></section>`;
 }
 
-async function researchCompany(contact, { manual = false, force = false } = {}) {
+async function researchCompany(contact, { manual = false, force = false, confirmIdentity = false } = {}) {
   if (!production?.research || !contact) return;
+  const eligibility = window.BCardLib.companyResearch.isAutoResearchEligible({ contact, cards: data.cards, autoEnabled: true, configured: production.configured, authenticated: Boolean(production.ownerId), online: data.settings.online, serverReady: true });
+  if (!eligibility.eligible) {
+    if (manual) toast("Chưa thể nghiên cứu", eligibility.reason === "CONTACT_CONFIRMATION_REQUIRED" || eligibility.reason === "CONFIRMED_CARD_REQUIRED" ? "Hãy xác nhận card trước." : "Cần đăng nhập, online và có quan hệ công ty hợp lệ.");
+    return eligibility;
+  }
   const relationship = primaryRelationship(contact);
   const tenantCompanyId = relationship.companyId || (relationship.id ? `company_${relationship.id}` : "");
-  await production.research.enqueue({ tenantCompanyId, companyName: relationship.company, website: relationship.website, businessEmail: preferredMethod(contact, "EMAIL")?.value || "" }, { manual, force });
+  await production.research.enqueue({ contactId: contact.id, tenantCompanyId, companyName: relationship.company, website: relationship.website, businessEmail: preferredMethod(contact, "EMAIL")?.value || "" }, { manual, force, confirmIdentity });
   if (selectedContactId === contact.id) render();
 }
 
+function researchDependenciesReady(contact, tenantCompanyId, pending) {
+  const relationshipIds = new Set((contact.relationships || []).filter(item => item.status === "ACTIVE").map(item => item.id));
+  const cardIds = new Set((contact.cards || []).filter(Boolean));
+  return !pending.some(item =>
+    (item.object_type === "tenant_company" && item.object_id === tenantCompanyId) ||
+    (item.object_type === "contact" && item.object_id === contact.id) ||
+    (item.object_type === "contact_company" && relationshipIds.has(item.object_id)) ||
+    (item.object_type === "card" && cardIds.has(item.object_id))
+  );
+}
+
 async function syncThenResearch(contact) {
-  if (!production?.research || !contact || !data.settings.autoResearch) return;
-  if (!production.configured) return researchCompany(contact);
-  if (!production.ownerId || !data.settings.online) return;
+  if (!production?.research || !contact) return;
+  const initial = window.BCardLib.companyResearch.isAutoResearchEligible({ contact, cards: data.cards, autoEnabled: data.settings.autoResearch, configured: production.configured, authenticated: Boolean(production.ownerId), online: data.settings.online, serverReady: true });
+  if (!initial.eligible) return initial;
   await production.sync.process();
-  const relationship = primaryRelationship(contact);
-  const tenantCompanyId = relationship.companyId || (relationship.id ? `company_${relationship.id}` : "");
-  if (!tenantCompanyId) return;
   const pending = await production.db.listOperations(production.ownerId, ["PENDING", "RETRY_WAIT", "AUTH_REQUIRED", "RECONCILE_REQUIRED", "CONFLICT", "IN_FLIGHT"]);
-  if (pending.some(item => item.object_type === "tenant_company" && item.object_id === tenantCompanyId)) return;
+  const serverReady = researchDependenciesReady(contact, initial.tenantCompanyId, pending);
+  const finalEligibility = window.BCardLib.companyResearch.isAutoResearchEligible({ contact, cards: data.cards, autoEnabled: data.settings.autoResearch, configured: production.configured, authenticated: Boolean(production.ownerId), online: data.settings.online, serverReady });
+  if (!finalEligibility.eligible) return finalEligibility;
   return researchCompany(contact);
 }
 
 async function researchSyncedContacts() {
   if (!production?.configured || !production.ownerId || !production.research || !data.settings.autoResearch || !data.settings.online) return;
-  const contacts = data.contacts.filter(contact => contact.lifecycle === "ACTIVE" && contact.sync === "COMPLETE" && primaryRelationship(contact)?.company);
+  const pending = await production.db.listOperations(production.ownerId, ["PENDING", "RETRY_WAIT", "AUTH_REQUIRED", "RECONCILE_REQUIRED", "CONFLICT", "IN_FLIGHT"]);
+  const contacts = data.contacts.filter(contact => {
+    const relationship = primaryRelationship(contact);
+    const tenantCompanyId = relationship.companyId || (relationship.id ? `company_${relationship.id}` : "");
+    const serverReady = tenantCompanyId && researchDependenciesReady(contact, tenantCompanyId, pending);
+    return window.BCardLib.companyResearch.isAutoResearchEligible({ contact, cards: data.cards, autoEnabled: data.settings.autoResearch, configured: true, authenticated: true, online: true, serverReady }).eligible;
+  });
   await Promise.allSettled(contacts.map(contact => researchCompany(contact)));
 }
 
 function renderCards() {
+  const cards = data.cards.filter(c => c.lifecycle !== "DELETED");
   return `${pageHead("Kho ảnh đối chiếu", "Namecard đã tiếp nhận", "Mỗi card là một snapshot lịch sử độc lập; cập nhật hồ sơ hiện tại không sửa nội dung lần quét cũ.", `<button class="button pressable" data-action="scan">${icon("scan-line")} Quét card</button>`)}
   <div class="table-head"><div class="search-wrap">${icon("search")}<label class="sr-only" for="cardSearch">Tìm namecard</label><input class="search" id="cardSearch" placeholder="Tìm theo tên, công ty hoặc sự kiện…" /></div><select id="cardStatus" aria-label="Lọc trạng thái card"><option>Tất cả trạng thái</option><option>COMPLETE</option><option>PENDING</option><option>PARTIAL</option><option>RETRY_WAIT</option><option>BLOCKED</option></select></div>
-  <div class="card-grid" id="cardGrid">${data.cards.filter(c => c.lifecycle !== "DELETED").map(cardTile).join("")}</div>`;
+  <div class="card-grid" id="cardGrid">${cards.map(cardTile).join("")}<div class="empty card-filter-empty" ${cards.length ? "hidden" : ""}>${icon("contact-round")}Chưa có namecard phù hợp.</div></div>`;
 }
 
 function cardTile(card) {
@@ -413,7 +460,7 @@ function eventNameOf(encounter) { return typeof encounter === "string" ? encount
 function renderEvents() {
   const selectedEvent = activeEvent();
   return `${pageHead("Bối cảnh gặp gỡ", "Sự kiện", "Gom những người bạn gặp theo nơi và thời điểm để nhớ lại cuộc trò chuyện dễ hơn.", `<button class="button pressable" data-action="add-event">${icon("plus")} Tạo sự kiện</button>`)}
-  <div class="card-grid">${data.events.map(event => `<section class="panel grid-item"><div class="panel-body"><span class="company-logo">${icon("calendar-days")}</span><p class="eyebrow event-date">${esc(event.date)}</p><h2>${esc(event.name)}</h2><p class="subhead">${esc(event.place)}</p><div class="event-status-row"><span class="tag">${eventContactCount(event.name)} người đã gặp</span>${selectedEvent?.id === event.id ? '<span class="tag active-event-tag">Đang tự điền khi quét</span>' : ""}</div><div class="table-head event-actions"><button class="button secondary small pressable" data-action="set-active-event" data-id="${esc(event.id)}" ${selectedEvent?.id === event.id ? "disabled" : ""}>${icon("scan-line")} ${selectedEvent?.id === event.id ? "Đang dùng" : "Dùng khi quét"}</button><button class="button ghost small pressable" data-event="${esc(event.name)}">Xem danh bạ ${icon("arrow-right")}</button></div></div></section>`).join("")}</div>`;
+  <div class="card-grid">${data.events.length ? data.events.map(event => `<section class="panel grid-item"><div class="panel-body"><span class="company-logo">${icon("calendar-days")}</span><p class="eyebrow event-date">${esc(event.date)}</p><h2>${esc(event.name)}</h2><p class="subhead">${esc(event.place)}</p><div class="event-status-row"><span class="tag">${eventContactCount(event.name)} người đã gặp</span>${selectedEvent?.id === event.id ? '<span class="tag active-event-tag">Đang tự điền khi quét</span>' : ""}</div><div class="table-head event-actions"><button class="button secondary small pressable" data-action="set-active-event" data-id="${esc(event.id)}" ${selectedEvent?.id === event.id ? "disabled" : ""}>${icon("scan-line")} ${selectedEvent?.id === event.id ? "Đang dùng" : "Dùng khi quét"}</button><button class="button ghost small pressable" data-event="${esc(event.name)}">Xem danh bạ ${icon("arrow-right")}</button></div></div></section>`).join("") : `<div class="empty">${icon("calendar-days")}Chưa có sự kiện. Tạo sự kiện để tự điền khi quét.</div>`}</div>`;
 }
 
 function allSyncObjects() {
@@ -444,9 +491,10 @@ function renderPrivacy() {
 }
 
 function renderAccount() {
-  const email = production?.session?.user?.email || (production?.configured ? "Chưa đăng nhập" : "local@development.invalid");
-  const label = email.split("@")[0] || "BCard";
-  const initials = label.split(/[._-]/).slice(0, 2).map(part => part[0]?.toUpperCase()).join("") || "BC";
+  const identity = currentAccountIdentity();
+  const email = identity.email || "Chưa đăng nhập";
+  const label = identity.label;
+  const initials = identity.initials;
   return `${pageHead("Tài khoản", esc(label), production?.configured ? "Phiên Supabase Auth" : "Chế độ phát triển · IndexedDB")}
   <section class="panel account-panel"><div class="panel-body"><div class="profile-head"><span class="avatar large peach">${esc(initials)}</span><div class="profile-title"><h2 class="account-name">${esc(label)}</h2><p>${esc(email)}</p><span class="tag">${production?.configured ? "Production" : "Local development"}</span></div></div><div class="info-section"><h3>Thiết bị và phiên</h3><div class="info-line"><span class="info-icon">${icon("smartphone")}</span><div class="info-copy"><strong>Thiết bị hiện tại</strong><small>IndexedDB · optimistic concurrency theo object/version</small></div></div></div><div class="info-section"><h3>Nghiên cứu doanh nghiệp</h3><p class="subhead">Khi bật, BCard chỉ gửi tên công ty, website hoặc tên miền email doanh nghiệp tới Edge Function; không gửi ảnh card, ghi chú hay lịch sử gặp.</p><button class="button secondary pressable" data-action="toggle-auto-research">${icon(data.settings.autoResearch ? "toggle-right" : "toggle-left")} Auto Research: ${data.settings.autoResearch ? "Bật" : "Tắt"}</button></div><div class="action-row"><button class="button secondary pressable" data-action="export">${icon("download")} Xuất dữ liệu của tôi</button>${production?.configured ? `<button class="button ghost pressable" data-action="sign-out">${icon("log-out")} Đăng xuất</button>` : ""}</div></div></section>`;
 }
@@ -508,11 +556,15 @@ function renderContactsInPlace() {
 function filterCards() {
   const query = (document.getElementById("cardSearch")?.value || "").toLocaleLowerCase("vi");
   const state = document.getElementById("cardStatus")?.value;
+  let visible = 0;
   document.querySelectorAll("#cardGrid [data-card]").forEach(card => {
     const matchesQuery = card.dataset.search.includes(query);
     const matchesState = state === "Tất cả trạng thái" || card.dataset.sync === state;
     card.classList.toggle("is-filtered-out", !(matchesQuery && matchesState));
+    if (matchesQuery && matchesState) visible += 1;
   });
+  const empty = document.querySelector("#cardGrid .card-filter-empty");
+  if (empty) empty.hidden = visible > 0;
 }
 
 async function handleAction(event) {
@@ -552,6 +604,7 @@ async function handleAction(event) {
   if (action === "data-request") openDataRequest();
   if (action === "sign-out" && production?.auth) await production.auth.signOut();
   if (action === "research-company") await researchCompany(data.contacts.find(contact => contact.id === button.dataset.id), { manual: true, force: true });
+  if (action === "confirm-company-research") await researchCompany(data.contacts.find(contact => contact.id === button.dataset.id), { manual: true, force: true, confirmIdentity: true });
   if (action === "toggle-auto-research") {
     if (await commitMutation(() => { data.settings.autoResearch = !data.settings.autoResearch; })) {
       production?.research?.setAutoEnabled(data.settings.autoResearch); render();
@@ -1133,6 +1186,8 @@ async function confirmCardReview(id) {
   closeModal();
   setRoute("contacts", { contactId: card?.contactId });
   toast("Đã xác nhận thông tin", "Card được đánh dấu đã đối chiếu 100%; điểm OCR gốc vẫn được giữ riêng.");
+  const confirmedContact = data.contacts.find(item => item.id === card?.contactId);
+  if (confirmedContact) syncThenResearch(confirmedContact).catch(() => {});
 }
 
 function openRelinkCard(id) {
