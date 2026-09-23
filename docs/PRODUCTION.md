@@ -39,6 +39,28 @@ supabase functions deploy company-resolver
 supabase functions deploy company-research
 ```
 
+The repository also provides the manual `Deploy Supabase production` workflow. Configure the protected `production` environment before dispatching it:
+
+```text
+Environment variables:
+SUPABASE_PROJECT_ID
+COMPANY_RESEARCH_MODEL (optional)
+RESEARCH_RATE_LIMIT_PER_HOUR (optional)
+RESOLVER_RATE_LIMIT_PER_HOUR (optional)
+RESEARCH_CACHE_DAYS (optional)
+
+Environment secrets:
+SUPABASE_ACCESS_TOKEN
+SUPABASE_DB_PASSWORD
+OPENAI_API_KEY
+
+Repository variables used by GitHub Pages:
+SUPABASE_URL
+SUPABASE_ANON_KEY
+```
+
+The workflow validates configuration, applies all migrations, uploads Edge Function secrets, deploys both functions and lists the remote migration/function state. After it succeeds, rerun `Deploy staging demo` so the public web bundle receives the public Supabase values. Server secrets are never passed to the web build.
+
 For a local Supabase stack use `supabase start` and `supabase db reset`. A rollback must restore the database first, then deploy the previous web/Edge Function version. Migrations intentionally use soft delete/tombstones; do not reverse them by deleting tables on a live tenant. Back up and test restore before pilot.
 
 ## RLS verification
