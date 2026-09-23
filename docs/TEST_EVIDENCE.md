@@ -1,24 +1,26 @@
 # Hardening test evidence
 
-- Timestamp: `2026-09-20T02:37:29+07:00`
-- Baseline commit: `1b5b7830c31964966750d32f885fad16a90452bf`
-- Implementation commit: `9b4c7cdbcee6e2dde1fc0cd5f453a41149fefa5c`
-- Candidate branch: `codex/staging-hardening`
-- Environment: Windows, Node `v24.19.0`, npm `11.17.0`, Supabase CLI `2.117.0` through `npx`
-- Data policy: generated fixtures only; historic real-card OCR evidence was removed
+- Recorded: `2026-09-23T14:30:00+07:00`
+- Tested `main` commit: `13dd2a2fb60767e78151df0a811c17453c9b055d`
+- Merged change: [PR #3](https://github.com/NNH18/Namecard/pull/3)
+- Commit-bound workflow: [GitHub Actions run 35831844650](https://github.com/NNH18/Namecard/actions/runs/35831844650)
+- CI environment: GitHub-hosted Ubuntu runner, Node `24.19.0`, Deno `2.9.7`, Supabase CLI `2.117.0`
+- Local verification environment: Windows, Node `v24.19.0`, npm `11.17.0`
+- Data policy: generated fixtures only; no real-card PII is committed or used by CI
 
-| Command | Result |
+| Check | Result |
 |---|---|
 | `npm ci` | PASS; 115 packages audited, 0 vulnerabilities |
-| `npm test` | PASS; 69/69 |
+| `npm test` | PASS; 78/78 |
 | `npm run check` | PASS |
+| Edge Function `deno check` | PASS; resolver and research functions |
 | `npm run build` | PASS |
-| `npm run test:ocr` | PASS; `vie+eng`, confidence fixture 94%, online/offline and CSP/worker/WASM checks |
-| `npm run test:visual` | PASS; 320/390/1024, dark/responsive and core interaction smoke |
-| `npm run mobile:sync` | PASS; TokenVault detected for Android and iOS, portable SwiftPM path normalized by script |
-| `supabase db reset` | NOT RUN locally; Docker is unavailable on this workstation |
-| `supabase test db` | NOT RUN locally; Docker is unavailable on this workstation |
-| GitHub Actions web job | PASS in 37s; unit/check/build/OCR/visual and artifact upload |
-| GitHub Actions database job | PASS in 1m46s; local stack start, migration reset and pgTAP suite |
+| `npm run test:ocr` | PASS; `vie+eng`, offline assets, worker/WASM and CSP checks |
+| `npm run test:visual` | PASS; 320/390/1024 px, dark/responsive and workflow smoke |
+| `npm run mobile:sync` | PASS locally; Android/iOS web assets synchronized |
+| `supabase db reset` | PASS in GitHub Actions database job |
+| `supabase test db` | PASS in GitHub Actions database job; 19 pgTAP assertions |
+| GitHub Actions `web` | PASS in 58s |
+| GitHub Actions `database` | PASS in 1m46s |
 
-Commit-bound CI evidence: [GitHub Actions run 35465156660](https://github.com/NNH18/Namecard/actions/runs/35465156660). CI uploads `server.log` and `test-results/` under an artifact named with the tested commit SHA.
+The workflow artifact is named with the tested commit SHA and contains `server.log` plus `test-results/`. This documentation update does not modify runtime or database code; the linked run is the authoritative result for the merge commit above.
